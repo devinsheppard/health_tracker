@@ -5,13 +5,14 @@ const Database = require('better-sqlite3');
 let db;
 let dbPath;
 let dataDir;
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 const allowedTables = new Set([
   'glucose_readings',
   'food_log',
   'workout_sessions',
   'workout_exercises',
+  'workout_templates',
   'activities',
   'weight_log',
   'sleep_log',
@@ -24,6 +25,7 @@ const tableColumns = {
   food_log: ['date', 'meal_type', 'description', 'net_carbs', 'protein', 'fat', 'calories'],
   workout_sessions: ['date', 'pre_glucose', 'post_glucose', 'duration', 'effort', 'notes'],
   workout_exercises: ['session_id', 'muscle_group', 'exercise', 'sets', 'reps', 'weight', 'seconds', 'mode', 'pounds'],
+  workout_templates: ['name', 'duration', 'effort', 'notes', 'exercises'],
   activities: ['date', 'name', 'met', 'duration', 'calories', 'notes', 'kind', 'source_session_id'],
   weight_log: ['date', 'weight', 'body_fat', 'lean_body_mass', 'notes'],
   sleep_log: ['date', 'hours', 'quality', 'morning_glucose', 'notes'],
@@ -71,6 +73,13 @@ const validators = {
     numberField(row, 'seconds', { min: 0, max: 86400 });
     numberField(row, 'pounds', { min: 0, max: 1000000 });
     enumField(row, 'mode', ['bilateral', 'single', 'bodyweight', 'timed'], partial);
+  },
+  workout_templates: (row, partial = false) => {
+    textField(row, 'name', { required: !partial, max: 120 });
+    numberField(row, 'duration', { min: 0, max: 1440 });
+    enumField(row, 'effort', ['light', 'moderate', 'vigorous'], partial);
+    textField(row, 'notes', { max: 2000 });
+    validateTemplateExercises(row, partial);
   },
   activities: (row, partial = false) => {
     dateField(row, 'date', partial);
@@ -158,6 +167,11 @@ const migrations = [
     version: 2,
     name: 'daily_ledger_summary',
     up: createDailyLedgerSchema
+  },
+  {
+    version: 3,
+    name: 'workout_templates',
+    up: createWorkoutTemplateSchema
   }
 ];
 
@@ -326,6 +340,20 @@ function createDailyLedgerSchema() {
   rebuildDailyLedger();
 }
 
+function createWorkoutTemplateSchema() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS workout_templates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      duration REAL,
+      effort TEXT,
+      notes TEXT,
+      exercises TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+}
+
 function getSchemaVersion() {
   return Number(db.pragma('user_version', { simple: true })) || 0;
 }
@@ -346,6 +374,7 @@ function getAllData() {
     food_log: all('SELECT * FROM food_log ORDER BY date DESC, id DESC'),
     workout_sessions: all('SELECT * FROM workout_sessions ORDER BY date DESC, id DESC'),
     workout_exercises: all('SELECT * FROM workout_exercises ORDER BY id DESC'),
+    workout_templates: all('SELECT * FROM workout_templates ORDER BY name COLLATE NOCASE, id DESC'),
     activities: all('SELECT * FROM activities ORDER BY date DESC, id DESC'),
     weight_log: all('SELECT * FROM weight_log ORDER BY date DESC, id DESC'),
     sleep_log: all('SELECT * FROM sleep_log ORDER BY date DESC, id DESC'),
@@ -726,6 +755,7 @@ function validateImportPayload(payload) {
   validateProfile(payload.data.profile || {});
   for (const table of allowedTables) {
     const rows = payload.data.tables[table];
+    if (rows === undefined && table === 'workout_templates') continue;
     if (!Array.isArray(rows)) throw new Error(`Import file is missing table: ${table}`);
     for (const row of rows) {
       integerField(row, 'id', { min: 1 });
@@ -817,6 +847,30 @@ function textField(row, field, options = {}) {
     return;
   }
   if (String(row[field]).length > options.max) fail(field, `must be ${options.max} characters or fewer`);
+}
+
+function validateTemplateExercises(row, partial = false) {
+  if (!hasValue(row, 'exercises')) {
+    if (!partial) fail('exercises', 'is required');
+    return;
+  }
+  let exercises;
+  try {
+    exercises = JSON.parse(row.exercises);
+  } catch {
+    fail('exercises', 'must be valid JSON');
+  }
+  if (!Array.isArray(exercises)) fail('exercises', 'must be a JSON array');
+  if (exercises.length > 100) fail('exercises', 'must include 100 entries or fewer');
+  for (const exercise of exercises) {
+    textField(exercise, 'muscle_group', { required: true, max: 120 });
+    textField(exercise, 'exercise', { required: true, max: 200 });
+    numberField(exercise, 'sets', { min: 0, max: 100 });
+    numberField(exercise, 'reps', { min: 0, max: 1000 });
+    numberField(exercise, 'weight', { min: 0, max: 2000 });
+    numberField(exercise, 'seconds', { min: 0, max: 86400 });
+    enumField(exercise, 'mode', ['bilateral', 'single', 'bodyweight', 'timed'], false);
+  }
 }
 
 function hasValue(row, field) {

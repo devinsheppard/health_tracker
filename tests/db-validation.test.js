@@ -91,6 +91,25 @@ test('accepts valid workout and activity rows', () => {
   assert.equal(row.activity_calories, 150);
 });
 
+test('accepts valid workout templates', () => {
+  init();
+
+  db.addRow('workout_templates', {
+    name: 'Push day',
+    duration: 60,
+    effort: 'moderate',
+    notes: 'Reusable draft',
+    exercises: JSON.stringify([
+      { muscle_group: 'Chest', exercise: 'Bench press', sets: 3, reps: 10, weight: 100, seconds: null, mode: 'bilateral' },
+      { muscle_group: 'Chest', exercise: 'Push-ups', sets: 3, reps: 12, weight: null, seconds: null, mode: 'bodyweight' }
+    ])
+  });
+
+  const template = db.getAllData().workout_templates[0];
+  assert.equal(template.name, 'Push day');
+  assert.equal(JSON.parse(template.exercises).length, 2);
+});
+
 test('rejects invalid profile values', () => {
   init();
 
@@ -164,11 +183,19 @@ test('rejects invalid workout and activity rows without saving them', () => {
     kind: 'activity',
     source_session_id: null
   }), /Validation failed: met/);
+  assert.throws(() => db.addRow('workout_templates', {
+    name: 'Bad template',
+    duration: 60,
+    effort: 'moderate',
+    notes: '',
+    exercises: '[{"mode":"sideways"}]'
+  }), /Validation failed: muscle_group/);
 
   const data = db.getAllData();
   assert.equal(data.workout_sessions.length, 0);
   assert.equal(data.workout_exercises.length, 0);
   assert.equal(data.activities.length, 0);
+  assert.equal(data.workout_templates.length, 0);
 });
 
 test('validates partial edits without requiring unchanged fields', () => {

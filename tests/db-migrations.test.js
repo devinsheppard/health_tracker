@@ -31,9 +31,11 @@ test('initializes a new database at the current schema version', () => {
     assert.equal(raw.pragma('user_version', { simple: true }), db.SCHEMA_VERSION);
     assert.deepEqual(raw.prepare('SELECT version, name FROM schema_migrations').all(), [
       { version: 1, name: 'baseline_health_tracker_schema' },
-      { version: 2, name: 'daily_ledger_summary' }
+      { version: 2, name: 'daily_ledger_summary' },
+      { version: 3, name: 'workout_templates' }
     ]);
     assert.equal(raw.prepare('SELECT COUNT(*) AS count FROM profile').get().count, 1);
+    assert.equal(raw.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name = 'workout_templates'").get().count, 1);
   } finally {
     raw.close();
   }

@@ -256,6 +256,7 @@ function workouts() {
       ])}
       ${panel('Challenge progress', `<div class="progress"><span style="width:${Math.min(100, pounds.total / 1000000 * 100)}%"></span></div>`)}
       ${panel(editingSession ? 'Edit workout session' : 'Add workout session', workoutSessionForm(editingSession))}
+      ${panel('Workout templates', workoutTemplatesPanel())}
       <div class="grid workout-grid">
         ${panel('Sessions', workoutSessionsTable())}
         ${panel('Per-exercise lifetime totals', exerciseTotalsTable())}
@@ -264,6 +265,7 @@ function workouts() {
     </div>
   `);
   bindWorkoutSessionForm();
+  bindWorkoutTemplateActions();
   if (editingExercise) bindExerciseForm();
   bindWorkoutActions();
   bindDeletes();
@@ -543,6 +545,28 @@ function draftExerciseTable() {
   ]));
 }
 
+function workoutTemplatesPanel() {
+  const templates = state.workout_templates || [];
+  const canSave = draftWorkoutExercises.length > 0;
+  const saveForm = `<form id="workoutTemplateForm">
+    ${fields([
+      ['template_name', 'Template name', 'text', ''],
+      ['template_effort', 'Default effort', 'select', workoutSessionDraft.effort || 'moderate', ['light', 'moderate', 'vigorous']],
+      ['template_duration', 'Default duration (minutes)', 'number', workoutSessionDraft.duration || '']
+    ])}
+    <label>Template notes<textarea name="template_notes">${esc(workoutSessionDraft.notes || '')}</textarea></label>
+    <button class="ghost-button" ${canSave ? '' : 'disabled'} type="submit">Save current draft as template</button>
+  </form>`;
+  const templateRows = templates.map((template) => [
+    template.name,
+    `${fmt(template.duration)} min`,
+    template.effort || 'moderate',
+    `${parseTemplateExercises(template).length} exercises`,
+    raw(`<div class="actions"><button class="mini-button" data-apply-template="${attr(template.id)}" type="button">Apply</button>${del('workout_templates', template.id).html}</div>`)
+  ]);
+  return `${saveForm}${table(['Name', 'Duration', 'Effort', 'Exercises', 'Actions'], templateRows)}`;
+}
+
 function activityForm(row = null) {
   const names = [...new Set([row?.name, ...Object.keys(activities)].filter(Boolean))];
   return `<form id="activityForm">
@@ -709,6 +733,39 @@ function bindWorkoutSessionForm() {
       workoutSessionDraft = {};
       draftWorkoutExercises = [];
       return result;
+    });
+  });
+}
+
+function bindWorkoutTemplateActions() {
+  document.getElementById('workoutTemplateForm')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!draftWorkoutExercises.length) return;
+    const body = formData(event.target);
+    const template = {
+      name: body.template_name,
+      duration: body.template_duration || workoutSessionDraft.duration,
+      effort: body.template_effort || workoutSessionDraft.effort || 'moderate',
+      notes: body.template_notes,
+      exercises: JSON.stringify(draftWorkoutExercises.map(templateExercise))
+    };
+    await save(() => api.add('workout_templates', template));
+  });
+  document.querySelectorAll('[data-apply-template]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const template = (state.workout_templates || []).find((row) => String(row.id) === String(button.dataset.applyTemplate));
+      if (!template) return;
+      workoutSessionDraft = {
+        ...workoutSessionDraft,
+        duration: template.duration || workoutSessionDraft.duration || '',
+        effort: template.effort || 'moderate',
+        notes: template.notes || workoutSessionDraft.notes || ''
+      };
+      draftWorkoutExercises = parseTemplateExercises(template).map((exercise) => ({
+        ...exercise,
+        pounds: exercisePounds(exercise)
+      }));
+      renderPage('workouts');
     });
   });
 }
@@ -910,6 +967,27 @@ function draftExerciseFromForm(body) {
   exercise.mode = exerciseMode(exercise.muscle_group, exercise.exercise);
   exercise.pounds = exercisePounds(exercise);
   return exercise;
+}
+
+function templateExercise(exercise) {
+  return {
+    muscle_group: exercise.muscle_group,
+    exercise: exercise.exercise,
+    sets: exercise.sets,
+    reps: exercise.reps,
+    weight: exercise.weight,
+    seconds: exercise.seconds,
+    mode: exercise.mode
+  };
+}
+
+function parseTemplateExercises(template) {
+  try {
+    const rows = JSON.parse(template.exercises || '[]');
+    return Array.isArray(rows) ? rows : [];
+  } catch {
+    return [];
+  }
 }
 
 function updateWorkoutEstimate(form) {
@@ -1142,11 +1220,16 @@ function workoutExercisesTable(sessionId, editingExercise = null) {
     exercise.exercise,
     fmt(exercise.sets),
     fmt(exercise.reps),
-    exercise.mode === 'bodyweight' ? 'bodyweight' : fmt(exercise.weight),
+    exercise.mode === 'bodyweight' ? `${fmt(bodyweightBasisForExercise(exercise))} lb bodyweight` : fmt(exercise.weight),
     exercise.mode === 'timed' ? `${fmt(exercise.seconds)} sec` : '',
     fmt(exercise.pounds),
     raw(`<div class="actions"><button class="mini-button" data-edit-exercise="${attr(exercise.id)}" type="button">Edit</button>${del('workout_exercises', exercise.id).html}</div>`)
   ]))}`;
+}
+
+function bodyweightBasisForExercise(exercise) {
+  const reps = n(exercise.sets) * n(exercise.reps);
+  return reps ? n(exercise.pounds) / reps : profileWeight();
 }
 
 function linkedWorkoutActivity(sessionId) {
