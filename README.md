@@ -6,7 +6,7 @@ My Health Tracker is a Windows desktop app for local personal health tracking. I
 
 The Windows installer is included in this repository:
 
-`release/My Health Tracker Setup 1.0.3.exe`
+`release/My Health Tracker Setup 1.0.4.exe`
 
 Run the installer to install the app. It creates Start Menu integration, supports uninstall through Windows Add/Remove Programs, and stores health data locally in the user's AppData folder.
 

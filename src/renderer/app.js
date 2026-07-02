@@ -180,9 +180,32 @@ function foodTotals(date = today()) {
   }), { net_carbs: 0, protein: 0, fat: 0, calories: 0 });
 }
 
+function weekToDateKeys() {
+  const start = new Date();
+  start.setDate(start.getDate() - start.getDay());
+  const days = [];
+  for (const cursor = new Date(start); localDateKey(cursor) <= today(); cursor.setDate(cursor.getDate() + 1)) {
+    days.push(localDateKey(cursor));
+  }
+  return days;
+}
+
+function weeklyBalance() {
+  return weekToDateKeys().reduce((sum, date) => {
+    const calories = foodTotals(date).calories;
+    const tdee = dailyBurn(date).tdee;
+    return {
+      calories: sum.calories + calories,
+      tdee: sum.tdee + tdee,
+      balance: sum.balance + calories - tdee
+    };
+  }, { calories: 0, tdee: 0, balance: 0 });
+}
+
 function dashboard() {
   const totals = foodTotals();
   const burn = dailyBurn();
+  const week = weeklyBalance();
   const pounds = lifetimePounds();
   const glucoseStats = glucoseSummary();
   const proteinTarget = n(state.profile?.protein_target) || 160;
@@ -194,6 +217,8 @@ function dashboard() {
         ['TDEE', `${fmt(burn.tdee)} cal`, `BMR ${fmt(bmr())} + activity ${fmt(burn.activityBurn)} + workout ${fmt(burn.workoutBurn)}`],
         ['Deficit / surplus', `${surplus >= 0 ? '+' : ''}${fmt(surplus)} cal`, `${fmt(totals.calories)} calories in today`],
         ['Glucose status', glucoseStats.count ? `${fmt(glucoseStats.avg)} mg/dL` : '--', glucoseStats.count ? `Est. A1c ${fmt(glucoseStats.a1c, 1)}%` : 'No readings yet'],
+        ['Estimated A1C', glucoseStats.count ? `${fmt(glucoseStats.a1c, 1)}%` : '--', glucoseStats.count ? `${glucoseStats.count} glucose readings` : 'No readings yet'],
+        ['Weekly deficit / surplus', `${week.balance >= 0 ? '+' : ''}${fmt(week.balance)} cal`, `${fmt(week.calories)} in vs ${fmt(week.tdee)} TDEE`],
         ['Protein', `${fmt(totals.protein)}g`, `Target ${fmt(proteinTarget)}g`]
       ])}
       ${panel('1 Million Pound Challenge', `
