@@ -1,5 +1,6 @@
 const api = window.healthApi;
 const calc = window.HealthCalculations;
+const html = window.HealthHtml;
 const {
   n,
   leanBodyMass,
@@ -14,6 +15,12 @@ const {
   exercisePounds: calculateExercisePounds,
   lifetimePounds: calculateLifetimePounds
 } = calc;
+const {
+  escapeHtml: esc,
+  attribute: attr,
+  trustedHtml: raw,
+  cellHtml
+} = html;
 const localDateKey = (date = new Date()) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -137,12 +144,12 @@ function renderPage(page) {
 
 function metrics(items) {
   return `<div class="grid four">${items.map(([label, value, note]) => `
-    <article class="metric"><span>${label}</span><strong>${value}</strong><small>${note || ''}</small></article>
+    <article class="metric"><span>${esc(label)}</span><strong>${esc(value)}</strong><small>${esc(note || '')}</small></article>
   `).join('')}</div>`;
 }
 
 function panel(title, body) {
-  return `<section class="panel"><h2>${title}</h2>${body}</section>`;
+  return `<section class="panel"><h2>${esc(title)}</h2>${body}</section>`;
 }
 
 function setContent(html) {
@@ -231,7 +238,7 @@ function dashboard() {
         <div class="progress"><span style="width:${Math.min(100, pounds.total / 1000000 * 100)}%"></span></div>
         <p class="muted">${fmt(pounds.total)} lbs lifted, ${fmt(Math.max(0, 1000000 - pounds.total))} remaining. ${pounds.week} sessions this week, ${pounds.month} this month, ${pounds.sessions} lifetime.</p>
       `)}
-      ${panel('Intake recommendation', `<div class="alert ${recommendation().tone}">${recommendation().text}</div>`)}
+      ${panel('Intake recommendation', `<div class="alert ${recommendation().tone}">${esc(recommendation().text)}</div>`)}
       <div class="grid two">
         ${panel('Weight trend', '<div class="chart-wrap"><canvas id="weightChart"></canvas></div>')}
         ${panel('Glucose trend', '<div class="chart-wrap"><canvas id="glucoseChart"></canvas></div>')}
@@ -254,7 +261,7 @@ function glucose() {
         ['Highest / lowest', summary.count ? `${fmt(summary.highest)} / ${fmt(summary.lowest)}` : '--', 'mg/dL']
       ])}
       ${panel('Add glucose reading', glucoseForm())}
-      ${panel('Last 30 readings', table(['Date', 'Time', 'Context', 'Value', 'Notes', ''], state.glucose_readings.slice(0, 30).map((r) => [r.date, r.time, r.context, `<span class="${glucoseClass(r.context, r.value)}">${fmt(r.value)}</span>`, r.notes || '', del('glucose_readings', r.id)])))}
+      ${panel('Last 30 readings', table(['Date', 'Time', 'Context', 'Value', 'Notes', ''], state.glucose_readings.slice(0, 30).map((r) => [r.date, r.time, r.context, raw(`<span class="${glucoseClass(r.context, r.value)}">${fmt(r.value)}</span>`), r.notes || '', del('glucose_readings', r.id)])))}
     </div>
   `);
   bindForm('glucoseForm', 'glucose_readings');
@@ -274,7 +281,7 @@ function food() {
         ['Fat', `${fmt(totals.fat)}g`, dietProfiles[state.profile?.diet_type] || 'Diet profile not set'],
         ['Deficit / surplus', `${balance >= 0 ? '+' : ''}${fmt(balance)} cal`, `TDEE ${fmt(burn.tdee)} cal`]
       ])}
-      ${panel('Recommendation', `<div class="alert ${recommendation().tone}">${recommendation().text}</div>`)}
+      ${panel('Recommendation', `<div class="alert ${recommendation().tone}">${esc(recommendation().text)}</div>`)}
       ${panel('Log meal', foodForm())}
       ${panel('Food log', table(['Date', 'Meal', 'Description', 'Net carbs', 'Protein', 'Fat', 'Calories', ''], state.food_log.map((r) => [r.date, r.meal_type, r.description, fmt(r.net_carbs), fmt(r.protein), fmt(r.fat), fmt(r.calories), del('food_log', r.id)])))}
     </div>
@@ -424,7 +431,7 @@ function labs() {
         ${panel('Log lab result', labForm())}
         ${panel('A1c progression', '<div class="chart-wrap"><canvas id="a1cChart"></canvas></div>')}
       </div>
-      ${panel('Lab history', table(['Date', 'Test', 'Value', 'Range', 'Flag', 'Notes', ''], state.lab_results.map((r) => [r.date, r.test_name, fmt(r.value, 2), r.reference_range, outOfRange(r) ? '<span class="reading-amber">Review</span>' : 'In range', r.notes || '', del('lab_results', r.id)])))}
+      ${panel('Lab history', table(['Date', 'Test', 'Value', 'Range', 'Flag', 'Notes', ''], state.lab_results.map((r) => [r.date, r.test_name, fmt(r.value, 2), r.reference_range, outOfRange(r) ? raw('<span class="reading-amber">Review</span>') : 'In range', r.notes || '', del('lab_results', r.id)])))}
     </div>
   `);
   bindForm('labForm', 'lab_results');
@@ -495,7 +502,7 @@ function workoutSessionForm(row = null) {
   const draft = row ? row : workoutSessionDraft;
   const estimate = workoutCalorieEstimate(draft, draftWorkoutExercises);
   return `<form id="workoutSessionForm">
-    ${row ? `<input type="hidden" name="id" value="${row.id}">` : ''}
+    ${row ? `<input type="hidden" name="id" value="${attr(row.id)}">` : ''}
     ${fields([
       ['date', 'Date', 'date', draft?.date || today()],
       ['pre_glucose', 'Pre-workout glucose', 'number', draft?.pre_glucose || ''],
@@ -503,7 +510,7 @@ function workoutSessionForm(row = null) {
       ['duration', 'Duration (minutes)', 'number', draft?.duration || ''],
       ['effort', 'Effort', 'select', draft?.effort || 'moderate', ['light', 'moderate', 'vigorous']]
     ])}
-    <label>Notes<textarea name="notes">${draft?.notes || ''}</textarea></label>
+    <label>Notes<textarea name="notes">${esc(draft?.notes || '')}</textarea></label>
     ${row ? '' : `
       <div class="subpanel">
         <h3>Add exercise</h3>
@@ -530,8 +537,8 @@ function exerciseForm(sessionId, row = null) {
   const groups = Object.keys(exerciseGroups);
   const group = row?.muscle_group || groups[0];
   return `<form id="exerciseForm">
-    <input type="hidden" name="session_id" value="${sessionId}" />
-    ${row ? `<input type="hidden" name="id" value="${row.id}" />` : ''}
+    <input type="hidden" name="session_id" value="${attr(sessionId)}" />
+    ${row ? `<input type="hidden" name="id" value="${attr(row.id)}" />` : ''}
     ${fields([
       ['muscle_group', 'Muscle group', 'select', group, groups],
       ['exercise', 'Exercise', 'select', row?.exercise || exerciseGroups[group][0][0], exerciseGroups[group].map((x) => x[0])],
@@ -569,16 +576,16 @@ function draftExerciseTable() {
     exercise.mode === 'bodyweight' ? 'bodyweight' : fmt(exercise.weight),
     exercise.mode === 'timed' ? `${fmt(exercise.seconds)} sec` : '',
     fmt(exercise.pounds),
-    `<button class="mini-button" data-remove-draft-exercise="${index}" type="button">Remove</button>`
+    raw(`<button class="mini-button" data-remove-draft-exercise="${index}" type="button">Remove</button>`)
   ]));
 }
 
 function activityForm(row = null) {
   const names = [...new Set([row?.name, ...Object.keys(activities)].filter(Boolean))];
   return `<form id="activityForm">
-    ${row ? `<input type="hidden" name="id" value="${row.id}">` : ''}
-    <input type="hidden" name="kind" value="${row?.kind || 'activity'}">
-    <input type="hidden" name="source_session_id" value="${row?.source_session_id || ''}">
+    ${row ? `<input type="hidden" name="id" value="${attr(row.id)}">` : ''}
+    <input type="hidden" name="kind" value="${attr(row?.kind || 'activity')}">
+    <input type="hidden" name="source_session_id" value="${attr(row?.source_session_id || '')}">
     ${fields([
       ['date', 'Date', 'date', row?.date || today()],
       ['name', 'Activity', 'select', row?.name || 'Slow walking', names],
@@ -586,7 +593,7 @@ function activityForm(row = null) {
       ['duration', 'Duration (minutes)', 'number', row?.duration || ''],
       ['calories', 'Calories', 'number', row?.calories || '']
     ])}
-    <label>Notes<textarea name="notes">${row?.notes || ''}</textarea></label>
+    <label>Notes<textarea name="notes">${esc(row?.notes || '')}</textarea></label>
     <div class="actions">
       <button class="primary-button">${row ? 'Update activity' : 'Save activity'}</button>
       ${row ? '<button class="ghost-button" data-cancel-activity-edit type="button">Cancel edit</button>' : ''}
@@ -644,15 +651,15 @@ function profileForm(p) {
     ['a1c_goal', 'A1c goal (%)', 'number', p.a1c_goal || 5.7],
     ['theme', 'Theme', 'select', p.theme || 'dark', ['dark', 'light']],
     ['eating_window', 'Eating window', 'text', p.eating_window || '']
-  ])}<label>Active medical conditions<textarea name="medical_conditions">${p.medical_conditions || ''}</textarea></label><p class="muted">Age: ${age(p.date_of_birth) || '--'} | Lean body mass: ${fmt(lbm(p), 1)} lbs | BMR: ${fmt(bmr())} cal</p><button class="primary-button">Save profile</button></form>`;
+  ])}<label>Active medical conditions<textarea name="medical_conditions">${esc(p.medical_conditions || '')}</textarea></label><p class="muted">Age: ${age(p.date_of_birth) || '--'} | Lean body mass: ${fmt(lbm(p), 1)} lbs | BMR: ${fmt(bmr())} cal</p><button class="primary-button">Save profile</button></form>`;
 }
 
 function fields(items) {
   return `<div class="form-grid">${items.map(([name, label, type, value = '', options]) => {
     if (type === 'select') {
-      return `<label>${label}<select name="${name}">${options.map((option) => `<option value="${option}" ${option === value ? 'selected' : ''}>${option || 'Not set'}</option>`).join('')}</select></label>`;
+      return `<label>${esc(label)}<select name="${attr(name)}">${options.map((option) => `<option value="${attr(option)}" ${option === value ? 'selected' : ''}>${esc(option || 'Not set')}</option>`).join('')}</select></label>`;
     }
-    return `<label>${label}<input name="${name}" type="${type}" value="${value}" ${type === 'number' ? 'step="any"' : ''}></label>`;
+    return `<label>${esc(label)}<input name="${attr(name)}" type="${attr(type)}" value="${attr(value)}" ${type === 'number' ? 'step="any"' : ''}></label>`;
   }).join('')}</div>`;
 }
 
@@ -748,7 +755,7 @@ function bindExerciseForm() {
   const groupSelect = form.elements.muscle_group;
   const exerciseSelect = form.elements.exercise;
   groupSelect.addEventListener('change', () => {
-    exerciseSelect.innerHTML = exerciseGroups[groupSelect.value].map(([name]) => `<option>${name}</option>`).join('');
+    exerciseSelect.innerHTML = exerciseGroups[groupSelect.value].map(([name]) => `<option>${esc(name)}</option>`).join('');
   });
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -964,12 +971,12 @@ function notify(message) {
 }
 
 function del(tableName, id) {
-  return `<button class="mini-button" data-table="${tableName}" data-delete="${id}" type="button">Delete</button>`;
+  return raw(`<button class="mini-button" data-table="${attr(tableName)}" data-delete="${attr(id)}" type="button">Delete</button>`);
 }
 
 function table(headers, rows) {
   if (!rows.length) return '<p class="muted">No entries yet.</p>';
-  return `<div class="table-wrap"><table><thead><tr>${headers.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell ?? ''}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  return `<div class="table-wrap"><table><thead><tr>${headers.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${cellHtml(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 
 function glucoseSummary() {
@@ -980,10 +987,10 @@ function latestGlucoseAlert() {
   const reading = state.glucose_readings?.[0];
   if (!reading) return '<div class="alert">No glucose readings yet.</div>';
   const cls = glucoseClass(reading.context, reading.value);
-  if (cls === 'reading-red') return `<div class="alert bad">Most recent glucose reading is high: ${fmt(reading.value)} mg/dL (${reading.context}).</div>`;
-  if (cls === 'reading-low') return `<div class="alert bad">Most recent glucose reading is low: ${fmt(reading.value)} mg/dL (${reading.context}).</div>`;
-  if (cls === 'reading-amber') return `<div class="alert warn">Most recent glucose reading is elevated: ${fmt(reading.value)} mg/dL (${reading.context}).</div>`;
-  return `<div class="alert good">Most recent glucose reading is in range: ${fmt(reading.value)} mg/dL (${reading.context}).</div>`;
+  if (cls === 'reading-red') return `<div class="alert bad">Most recent glucose reading is high: ${fmt(reading.value)} mg/dL (${esc(reading.context)}).</div>`;
+  if (cls === 'reading-low') return `<div class="alert bad">Most recent glucose reading is low: ${fmt(reading.value)} mg/dL (${esc(reading.context)}).</div>`;
+  if (cls === 'reading-amber') return `<div class="alert warn">Most recent glucose reading is elevated: ${fmt(reading.value)} mg/dL (${esc(reading.context)}).</div>`;
+  return `<div class="alert good">Most recent glucose reading is in range: ${fmt(reading.value)} mg/dL (${esc(reading.context)}).</div>`;
 }
 
 function recommendation() {
@@ -1067,7 +1074,7 @@ function workoutSessionsTable() {
     fmt(exercises.filter((e) => e.session_id === s.id).reduce((sum, e) => sum + n(e.pounds), 0)),
     `${fmt(s.pre_glucose)} / ${fmt(s.post_glucose)}`,
     s.notes || '',
-    `<div class="actions"><button class="mini-button" data-select-session="${s.id}" type="button">Select</button><button class="mini-button" data-edit-session="${s.id}" type="button">Edit</button>${del('workout_sessions', s.id)}</div>`
+    raw(`<div class="actions"><button class="mini-button" data-select-session="${attr(s.id)}" type="button">Select</button><button class="mini-button" data-edit-session="${attr(s.id)}" type="button">Edit</button>${del('workout_sessions', s.id).html}</div>`)
   ]));
 }
 
@@ -1115,11 +1122,11 @@ function activityDisplayRows() {
 }
 
 function activityActions(row) {
-  const select = `<button class="mini-button" data-select-activity="${row.id}" type="button">Select</button>`;
+  const select = `<button class="mini-button" data-select-activity="${attr(row.id)}" type="button">Select</button>`;
   if (row.synthetic) {
-    return `<div class="actions">${select}</div>`;
+    return raw(`<div class="actions">${select}</div>`);
   }
-  return `<div class="actions">${select}<button class="mini-button" data-edit-activity="${row.id}" type="button">Edit</button>${del('activities', row.id)}</div>`;
+  return raw(`<div class="actions">${select}<button class="mini-button" data-edit-activity="${attr(row.id)}" type="button">Edit</button>${del('activities', row.id).html}</div>`);
 }
 
 function activityDetailScreen(row) {
@@ -1138,8 +1145,8 @@ function activityDetailScreen(row) {
     <div class="grid">
       <button class="back-button" data-back-activity type="button">&larr; Activity & Burn</button>
       <div>
-        <p class="muted">${row.date || ''}</p>
-        <h2>${title}</h2>
+        <p class="muted">${esc(row.date || '')}</p>
+        <h2>${esc(title)}</h2>
       </div>
       ${metrics([
         ['Calories', fmt(row.calories), row.kind === 'workout' ? 'Estimated workout burn' : 'MET activity burn'],
@@ -1147,10 +1154,10 @@ function activityDetailScreen(row) {
         ['Date', row.date || '--', row.name || '--'],
         ['Source', row.kind === 'workout' ? 'Workout' : 'Activity', linked]
       ])}
-      ${panel('Notes', `<div class="alert">${row.notes || 'No notes saved.'}</div>`)}
+      ${panel('Notes', `<div class="alert">${esc(row.notes || 'No notes saved.')}</div>`)}
       <div class="actions">
-        <button class="primary-button" data-edit-detail="${row.id}" type="button">EDIT</button>
-        <button class="danger-button" data-delete-detail="${row.id}" type="button">DELETE</button>
+        <button class="primary-button" data-edit-detail="${attr(row.id)}" type="button">EDIT</button>
+        <button class="danger-button" data-delete-detail="${attr(row.id)}" type="button">DELETE</button>
       </div>
       ${editPanel}
       ${workoutEditPanel}
@@ -1175,7 +1182,7 @@ function workoutExercisesTable(sessionId, editingExercise = null) {
     exercise.mode === 'bodyweight' ? 'bodyweight' : fmt(exercise.weight),
     exercise.mode === 'timed' ? `${fmt(exercise.seconds)} sec` : '',
     fmt(exercise.pounds),
-    `<div class="actions"><button class="mini-button" data-edit-exercise="${exercise.id}" type="button">Edit</button>${del('workout_exercises', exercise.id)}</div>`
+    raw(`<div class="actions"><button class="mini-button" data-edit-exercise="${attr(exercise.id)}" type="button">Edit</button>${del('workout_exercises', exercise.id).html}</div>`)
   ]))}`;
 }
 
