@@ -30,7 +30,8 @@ test('initializes a new database at the current schema version', () => {
   try {
     assert.equal(raw.pragma('user_version', { simple: true }), db.SCHEMA_VERSION);
     assert.deepEqual(raw.prepare('SELECT version, name FROM schema_migrations').all(), [
-      { version: 1, name: 'baseline_health_tracker_schema' }
+      { version: 1, name: 'baseline_health_tracker_schema' },
+      { version: 2, name: 'daily_ledger_summary' }
     ]);
     assert.equal(raw.prepare('SELECT COUNT(*) AS count FROM profile').get().count, 1);
   } finally {
@@ -67,4 +68,6 @@ test('migrates an existing unversioned database without losing rows', () => {
   assert.equal(db.getSchemaVersion(), db.SCHEMA_VERSION);
   assert.equal(data.food_log.length, 1);
   assert.equal(data.food_log[0].description, 'Chicken');
+  assert.equal(data.daily_ledger.length, 1);
+  assert.equal(data.daily_ledger[0].food_calories, 300);
 });
