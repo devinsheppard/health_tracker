@@ -284,6 +284,8 @@ function workouts() {
 
 function activity() {
   const burn = dailyBurn();
+  const intake = foodTotals();
+  const balance = intake.calories - burn.tdee;
   const rows = activityDisplayRows();
   if (selectedActivityId && !rows.some((row) => String(row.id) === String(selectedActivityId))) {
     selectedActivityId = null;
@@ -306,7 +308,8 @@ function activity() {
         ['BMR', `${fmt(bmr())} cal`, 'Katch-McArdle'],
         ['Activity burn', `${fmt(burn.activityBurn)} cal`, 'Non-workout MET activity today'],
         ['Workout burn', `${fmt(burn.workoutBurn)} cal`, 'Estimated from saved workout sessions'],
-        ['TDEE', `${fmt(burn.tdee)} cal`, 'BMR + burn']
+        ['TDEE', `${fmt(burn.tdee)} cal`, 'BMR + burn'],
+        ['Deficit / surplus', `${balance >= 0 ? '+' : ''}${fmt(balance)} cal`, `${fmt(intake.calories)} calories in today`]
       ])}
       ${panel(editingActivity ? 'Edit activity' : 'Log activity', activityForm(editingActivity))}
       ${panel('Activity history', activityHistoryTable(rows))}
