@@ -1,0 +1,9 @@
+node_modules/
+release/*
+!release/My Health Tracker Setup 1.0.0.exe
+!release/My Health Tracker Setup 1.0.0.exe.blockmap
+dist/
+*.log
+*.sqlite
+*.sqlite-*
+.env

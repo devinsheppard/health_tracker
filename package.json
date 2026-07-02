@@ -1,0 +1,51 @@
+{
+  "name": "my-health-tracker",
+  "version": "1.0.0",
+  "description": "Windows desktop personal health tracker",
+  "main": "src/main.js",
+  "author": "My Health Tracker",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "postinstall": "electron-builder install-app-deps",
+    "build": "electron-builder --win nsis",
+    "dist": "electron-builder",
+    "make:icon": "node scripts/create-icon.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.10.0",
+    "chart.js": "^4.4.9"
+  },
+  "devDependencies": {
+    "electron": "^35.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.local.myhealthtracker",
+    "productName": "My Health Tracker",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "src/**/*",
+      "node_modules/**/*",
+      "package.json",
+      "build/*"
+    ],
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "My Health Tracker",
+      "uninstallDisplayName": "My Health Tracker"
+    }
+  }
+}
