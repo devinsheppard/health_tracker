@@ -1,4 +1,19 @@
 const api = window.healthApi;
+const calc = window.HealthCalculations;
+const {
+  n,
+  leanBodyMass,
+  katchMcardleBmr,
+  foodTotals: calculateFoodTotals,
+  glucoseSummary: calculateGlucoseSummary,
+  glucoseClass,
+  a1cFlag,
+  metCalories: calculateMetCalories,
+  workoutMet,
+  workoutCalorieEstimate: calculateWorkoutCalories,
+  exercisePounds: calculateExercisePounds,
+  lifetimePounds: calculateLifetimePounds
+} = calc;
 const localDateKey = (date = new Date()) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -7,10 +22,7 @@ const localDateKey = (date = new Date()) => {
 };
 const today = () => localDateKey();
 const nowTime = () => new Date().toTimeString().slice(0, 5);
-const lbToKg = (lb) => n(lb) * 0.45359237;
-const kgFromLbm = (weight, bodyFat) => lbToKg(n(weight) * (1 - n(bodyFat) / 100));
 const fmt = (value, digits = 0) => Number.isFinite(Number(value)) ? Number(value).toFixed(digits) : '--';
-const n = (value) => Number(value) || 0;
 
 const pages = [
   ['dashboard', 'Dashboard'],
@@ -153,12 +165,11 @@ function lbm(profile = state.profile) {
   const logged = latestWeight();
   const weight = logged?.weight || profile?.current_weight;
   const bodyFat = logged?.body_fat || profile?.body_fat;
-  return n(weight) && n(bodyFat) ? n(weight) * (1 - n(bodyFat) / 100) : n(profile?.lean_body_mass);
+  return leanBodyMass(weight, bodyFat) || n(profile?.lean_body_mass);
 }
 
 function bmr() {
-  const leanKg = lbToKg(lbm());
-  return leanKg ? 370 + 21.6 * leanKg : 0;
+  return katchMcardleBmr(lbm());
 }
 
 function dailyBurn(date = today()) {
@@ -172,12 +183,7 @@ function dailyBurn(date = today()) {
 }
 
 function foodTotals(date = today()) {
-  return todayRows('food_log', date).reduce((sum, row) => ({
-    net_carbs: sum.net_carbs + n(row.net_carbs),
-    protein: sum.protein + n(row.protein),
-    fat: sum.fat + n(row.fat),
-    calories: sum.calories + n(row.calories)
-  }), { net_carbs: 0, protein: 0, fat: 0, calories: 0 });
+  return calculateFoodTotals(todayRows('food_log', date));
 }
 
 function weekToDateKeys() {
@@ -446,7 +452,7 @@ function settings() {
   document.getElementById('profileForm').addEventListener('submit', async (event) => {
     event.preventDefault();
     const body = formData(event.target);
-    body.lean_body_mass = n(body.current_weight) && n(body.body_fat) ? n(body.current_weight) * (1 - n(body.body_fat) / 100) : '';
+    body.lean_body_mass = leanBodyMass(body.current_weight, body.body_fat) || '';
     await save(() => api.saveProfile(body));
   });
   document.getElementById('backupBtn').addEventListener('click', async () => {
@@ -893,7 +899,7 @@ function bindWeightForm() {
   document.getElementById('weightForm').addEventListener('submit', async (event) => {
     event.preventDefault();
     const body = formData(event.target);
-    body.lean_body_mass = n(body.weight) && n(body.body_fat) ? n(body.weight) * (1 - n(body.body_fat) / 100) : '';
+    body.lean_body_mass = leanBodyMass(body.weight, body.body_fat) || '';
     await save(async () => {
       await api.add('weight_log', body);
       return api.saveSettings({ current_weight: body.weight, body_fat: body.body_fat, lean_body_mass: body.lean_body_mass });
@@ -963,29 +969,7 @@ function table(headers, rows) {
 }
 
 function glucoseSummary() {
-  const rows = state.glucose_readings || [];
-  const values = rows.map((r) => n(r.value)).filter(Boolean);
-  const fasting = rows.filter((r) => r.context === 'fasting morning').map((r) => n(r.value)).filter(Boolean);
-  const avg = values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
-  return {
-    count: values.length,
-    avg,
-    a1c: values.length ? (avg + 46.7) / 28.7 : 0,
-    fastingCount: fasting.length,
-    fastingAvg: fasting.length ? fasting.reduce((a, b) => a + b, 0) / fasting.length : 0,
-    highest: values.length ? Math.max(...values) : 0,
-    lowest: values.length ? Math.min(...values) : 0
-  };
-}
-
-function glucoseClass(context, value) {
-  const v = n(value);
-  if ((context === 'fasting morning' && v < 70) || (context === 'post-workout' && v < 65)) return 'reading-low';
-  if (context === '1hr post-meal') return v > 200 ? 'reading-red' : v >= 160 ? 'reading-amber' : 'reading-green';
-  if (context === '2hr post-meal') return v > 180 ? 'reading-red' : v >= 140 ? 'reading-amber' : 'reading-green';
-  if (context === 'bedtime') return v > 150 ? 'reading-red' : v >= 120 ? 'reading-amber' : 'reading-green';
-  if (context === 'post-workout') return v > 160 ? 'reading-red' : v >= 130 ? 'reading-amber' : 'reading-green';
-  return v > 150 ? 'reading-red' : v >= 130 ? 'reading-amber' : 'reading-green';
+  return calculateGlucoseSummary(state.glucose_readings || []);
 }
 
 function latestGlucoseAlert() {
@@ -996,13 +980,6 @@ function latestGlucoseAlert() {
   if (cls === 'reading-low') return `<div class="alert bad">Most recent glucose reading is low: ${fmt(reading.value)} mg/dL (${reading.context}).</div>`;
   if (cls === 'reading-amber') return `<div class="alert warn">Most recent glucose reading is elevated: ${fmt(reading.value)} mg/dL (${reading.context}).</div>`;
   return `<div class="alert good">Most recent glucose reading is in range: ${fmt(reading.value)} mg/dL (${reading.context}).</div>`;
-}
-
-function a1cFlag(value) {
-  if (!value) return { tone: '', label: 'No estimate' };
-  if (value > 6.5) return { tone: 'bad', label: 'Above diabetes threshold' };
-  if (value >= 5.7) return { tone: 'warn', label: 'Prediabetes range' };
-  return { tone: 'good', label: 'Below 5.7%' };
 }
 
 function recommendation() {
@@ -1041,13 +1018,7 @@ function recentAverages(_tableName, days, calculator) {
 }
 
 function foodTotalsForDate(date) {
-  const rows = (state.food_log || []).filter((r) => r.date === date);
-  return rows.reduce((sum, row) => ({
-    net_carbs: sum.net_carbs + n(row.net_carbs),
-    protein: sum.protein + n(row.protein),
-    fat: sum.fat + n(row.fat),
-    calories: sum.calories + n(row.calories)
-  }), { net_carbs: 0, protein: 0, fat: 0, calories: 0 });
+  return calculateFoodTotals((state.food_log || []).filter((r) => r.date === date));
 }
 
 function carbFlag(carbs) {
@@ -1060,37 +1031,15 @@ function carbFlag(carbs) {
 }
 
 function metCalories(met, minutes) {
-  return n(met) * lbToKg(profileWeight()) * (n(minutes) / 60);
-}
-
-function workoutMet(effort) {
-  return { light: 3.5, moderate: 5, vigorous: 6 }[effort] || 5;
+  return calculateMetCalories(met, minutes, profileWeight());
 }
 
 function exercisesForSession(sessionId) {
   return (state.workout_exercises || []).filter((exercise) => n(exercise.session_id) === n(sessionId));
 }
 
-function estimatedExerciseMinutes(exercises) {
-  const setMinutes = exercises.reduce((sum, exercise) => {
-    if (exercise.mode === 'timed') return sum + n(exercise.seconds) / 60;
-    return sum + n(exercise.sets) * 1.5;
-  }, 0);
-  return Math.max(0, setMinutes);
-}
-
 function workoutCalorieEstimate(session, exercises = []) {
-  const duration = n(session?.duration) || estimatedExerciseMinutes(exercises);
-  const hours = duration / 60;
-  const pounds = exercises.reduce((sum, exercise) => sum + n(exercise.pounds), 0);
-  const weightCalories = workoutMet(session?.effort) * lbToKg(profileWeight()) * hours;
-  const bmrCalories = bmr() * (duration / 1440);
-  const loadFactor = 1 + Math.min(0.25, pounds / Math.max(1, profileWeight()) / 1000);
-  return {
-    calories: (weightCalories + bmrCalories) * loadFactor,
-    duration,
-    pounds
-  };
+  return calculateWorkoutCalories(session, exercises, profileWeight(), bmr());
 }
 
 function exerciseMode(group, exercise) {
@@ -1098,24 +1047,11 @@ function exerciseMode(group, exercise) {
 }
 
 function exercisePounds(row) {
-  if (row.mode === 'timed') return 0;
-  if (row.mode === 'bodyweight') return n(row.sets) * n(row.reps) * profileWeight();
-  return n(row.sets) * n(row.reps) * n(row.weight) * (row.mode === 'single' ? 2 : 1);
+  return calculateExercisePounds(row, profileWeight());
 }
 
 function lifetimePounds() {
-  const total = (state.workout_exercises || []).reduce((sum, row) => sum + n(row.pounds), 0);
-  const sessions = state.workout_sessions || [];
-  const startWeek = new Date();
-  startWeek.setDate(startWeek.getDate() - startWeek.getDay());
-  const weekIso = localDateKey(startWeek);
-  const monthIso = today().slice(0, 7);
-  return {
-    total,
-    sessions: sessions.length,
-    week: sessions.filter((s) => s.date >= weekIso).length,
-    month: sessions.filter((s) => s.date?.startsWith(monthIso)).length
-  };
+  return calculateLifetimePounds(state.workout_exercises || [], state.workout_sessions || [], today());
 }
 
 function workoutSessionsTable() {
