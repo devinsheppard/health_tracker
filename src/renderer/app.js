@@ -627,7 +627,7 @@ function profileForm(p) {
   return `<form id="profileForm">${fields([
     ['name', 'Name', 'text', p.name || ''],
     ['date_of_birth', 'Date of birth', 'date', p.date_of_birth || ''],
-    ['sex', 'Sex', 'select', p.sex || '', ['', 'female', 'male', 'intersex', 'prefer not to say']],
+    ['sex', 'Sex', 'select', p.sex || 'male', ['male', 'female']],
     ['height_ft', 'Height ft', 'number', p.height_ft || ''],
     ['height_in', 'Height in', 'number', p.height_in || ''],
     ['current_weight', 'Current weight (lbs)', 'number', p.current_weight || ''],
