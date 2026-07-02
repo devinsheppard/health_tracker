@@ -950,9 +950,13 @@ function updateWorkoutEstimate(form) {
 
 async function save(fn) {
   document.getElementById('saveStatus').textContent = 'Saving...';
-  await fn();
-  document.getElementById('saveStatus').textContent = 'Saved';
-  await refresh();
+  try {
+    await fn();
+    document.getElementById('saveStatus').textContent = 'Saved';
+    await refresh();
+  } catch (error) {
+    document.getElementById('saveStatus').textContent = error.message || 'Save failed';
+  }
 }
 
 function notify(message) {

@@ -40,6 +40,77 @@ const sourceTablesWithDates = [
   'lab_results'
 ];
 
+const validators = {
+  glucose_readings: (row, partial = false) => {
+    dateField(row, 'date', partial);
+    enumField(row, 'context', ['fasting morning', 'before meal', '1hr post-meal', '2hr post-meal', 'bedtime', 'post-workout', 'random'], partial);
+    numberField(row, 'value', { min: 20, max: 600, required: !partial });
+    timeField(row, 'time', true);
+  },
+  food_log: (row, partial = false) => {
+    dateField(row, 'date', partial);
+    enumField(row, 'meal_type', ['breakfast', 'lunch', 'dinner', 'snack'], partial);
+    numberField(row, 'net_carbs', { min: 0, max: 1000 });
+    numberField(row, 'protein', { min: 0, max: 1000 });
+    numberField(row, 'fat', { min: 0, max: 1000 });
+    numberField(row, 'calories', { min: 0, max: 10000 });
+  },
+  workout_sessions: (row, partial = false) => {
+    dateField(row, 'date', partial);
+    numberField(row, 'pre_glucose', { min: 20, max: 600 });
+    numberField(row, 'post_glucose', { min: 20, max: 600 });
+    numberField(row, 'duration', { min: 0, max: 1440 });
+    enumField(row, 'effort', ['light', 'moderate', 'vigorous'], partial);
+  },
+  workout_exercises: (row, partial = false) => {
+    integerField(row, 'session_id', { min: 1, required: !partial });
+    numberField(row, 'sets', { min: 0, max: 100 });
+    numberField(row, 'reps', { min: 0, max: 1000 });
+    numberField(row, 'weight', { min: 0, max: 2000 });
+    numberField(row, 'seconds', { min: 0, max: 86400 });
+    numberField(row, 'pounds', { min: 0, max: 1000000 });
+    enumField(row, 'mode', ['bilateral', 'single', 'bodyweight', 'timed'], partial);
+  },
+  activities: (row, partial = false) => {
+    dateField(row, 'date', partial);
+    numberField(row, 'met', { min: 0, max: 25 });
+    numberField(row, 'duration', { min: 0, max: 1440 });
+    numberField(row, 'calories', { min: 0, max: 10000 });
+    enumField(row, 'kind', ['activity', 'workout'], partial);
+    integerField(row, 'source_session_id', { min: 1 });
+  },
+  weight_log: (row, partial = false) => {
+    dateField(row, 'date', partial);
+    numberField(row, 'weight', { min: 20, max: 1500, required: !partial });
+    numberField(row, 'body_fat', { min: 0, max: 100 });
+    numberField(row, 'lean_body_mass', { min: 0, max: 1500 });
+  },
+  sleep_log: (row, partial = false) => {
+    dateField(row, 'date', partial);
+    numberField(row, 'hours', { min: 0, max: 24, required: !partial });
+    enumField(row, 'quality', ['great', 'good', 'fair', 'poor'], partial);
+    numberField(row, 'morning_glucose', { min: 20, max: 600 });
+  },
+  medications: (row, partial = false) => {
+    textField(row, 'name', { required: !partial, max: 200 });
+    textField(row, 'dose', { max: 200 });
+    textField(row, 'frequency', { max: 200 });
+    textField(row, 'timing', { max: 200 });
+  },
+  lab_results: (row, partial = false) => {
+    dateField(row, 'date', partial);
+    textField(row, 'test_name', { required: !partial, max: 200 });
+    numberField(row, 'value', { min: -100000, max: 100000, required: !partial });
+  }
+};
+
+const profileEnums = {
+  sex: ['male', 'female'],
+  goals: ['weight loss', 'body recomposition', 'muscle gain', 'maintenance', 'manage T2D/blood sugar'],
+  diet_type: ['keto', 'carnivore', 'keto-carnivore hybrid', 'low carb', 'paleo', 'Mediterranean', 'standard American', 'IIFYM/flexible dieting', 'intermittent fasting'],
+  theme: ['dark', 'light']
+};
+
 function init(userDataPath) {
   fs.mkdirSync(userDataPath, { recursive: true });
   dbPath = path.join(userDataPath, 'my-health-tracker.sqlite');
@@ -284,6 +355,7 @@ function getAllData() {
 }
 
 function saveProfile(profile) {
+  validateProfile(profile);
   const fields = [
     'name', 'date_of_birth', 'sex', 'height_ft', 'height_in', 'current_weight',
     'body_fat', 'lean_body_mass', 'goals', 'diet_type', 'medical_conditions',
@@ -308,6 +380,7 @@ function saveSettings(settings) {
 
 function addRow(table, row) {
   ensureTable(table);
+  validateRow(table, row);
   const columns = tableColumns[table];
   const placeholders = columns.map(() => '?').join(', ');
   const stmt = db.prepare(`INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`);
@@ -318,6 +391,7 @@ function addRow(table, row) {
 
 function updateRow(table, id, row) {
   ensureTable(table);
+  validateRow(table, row, true);
   const columns = tableColumns[table].filter((column) => Object.prototype.hasOwnProperty.call(row, column));
   if (!columns.length) return getAllData();
   const assignments = columns.map((column) => `${column} = ?`).join(', ');
@@ -535,6 +609,88 @@ function clean(value) {
 
 function n(value) {
   return Number(value) || 0;
+}
+
+function validateProfile(profile) {
+  dateField(profile, 'date_of_birth', true);
+  numberField(profile, 'height_ft', { min: 0, max: 9 });
+  numberField(profile, 'height_in', { min: 0, max: 11.99 });
+  numberField(profile, 'current_weight', { min: 20, max: 1500 });
+  numberField(profile, 'body_fat', { min: 0, max: 100 });
+  numberField(profile, 'lean_body_mass', { min: 0, max: 1500 });
+  numberField(profile, 'protein_target', { min: 0, max: 1000 });
+  numberField(profile, 'a1c_goal', { min: 3, max: 20 });
+  for (const [field, options] of Object.entries(profileEnums)) enumField(profile, field, options, true);
+}
+
+function validateRow(table, row, partial = false) {
+  validators[table]?.(row, partial);
+}
+
+function dateField(row, field, optional = false) {
+  if (!hasValue(row, field)) {
+    if (!optional) fail(field, 'is required');
+    return;
+  }
+  const value = String(row[field]);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) fail(field, 'must be a date in YYYY-MM-DD format');
+  const date = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) fail(field, 'must be a valid calendar date');
+}
+
+function timeField(row, field, optional = false) {
+  if (!hasValue(row, field)) {
+    if (!optional) fail(field, 'is required');
+    return;
+  }
+  const value = String(row[field]);
+  if (!/^\d{2}:\d{2}$/.test(value)) fail(field, 'must be a time in HH:MM format');
+  const [hour, minute] = value.split(':').map(Number);
+  if (hour > 23 || minute > 59) fail(field, 'must be a valid time');
+}
+
+function enumField(row, field, options, optional = false) {
+  if (!hasValue(row, field)) {
+    if (!optional) fail(field, 'is required');
+    return;
+  }
+  if (!options.includes(row[field])) fail(field, `must be one of: ${options.join(', ')}`);
+}
+
+function numberField(row, field, options = {}) {
+  if (!hasValue(row, field)) {
+    if (options.required) fail(field, 'is required');
+    return;
+  }
+  const value = Number(row[field]);
+  if (!Number.isFinite(value)) fail(field, 'must be a number');
+  if (options.min !== undefined && value < options.min) fail(field, `must be at least ${options.min}`);
+  if (options.max !== undefined && value > options.max) fail(field, `must be at most ${options.max}`);
+}
+
+function integerField(row, field, options = {}) {
+  if (!hasValue(row, field)) {
+    if (options.required) fail(field, 'is required');
+    return;
+  }
+  numberField(row, field, options);
+  if (!Number.isInteger(Number(row[field]))) fail(field, 'must be a whole number');
+}
+
+function textField(row, field, options = {}) {
+  if (!hasValue(row, field)) {
+    if (options.required) fail(field, 'is required');
+    return;
+  }
+  if (String(row[field]).length > options.max) fail(field, `must be ${options.max} characters or fewer`);
+}
+
+function hasValue(row, field) {
+  return row && row[field] !== undefined && row[field] !== null && row[field] !== '';
+}
+
+function fail(field, message) {
+  throw new Error(`Validation failed: ${field} ${message}`);
 }
 
 module.exports = {
