@@ -1,0 +1,70 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const test = require('node:test');
+const Database = require('better-sqlite3');
+
+const db = require('../src/db');
+
+function tempUserData() {
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'health-tracker-db-'));
+}
+
+function openRaw(userDataPath) {
+  return new Database(path.join(userDataPath, 'my-health-tracker.sqlite'));
+}
+
+test.afterEach(() => {
+  db.close();
+});
+
+test('initializes a new database at the current schema version', () => {
+  const userDataPath = tempUserData();
+
+  db.init(userDataPath);
+
+  assert.equal(db.getSchemaVersion(), db.SCHEMA_VERSION);
+
+  const raw = openRaw(userDataPath);
+  try {
+    assert.equal(raw.pragma('user_version', { simple: true }), db.SCHEMA_VERSION);
+    assert.deepEqual(raw.prepare('SELECT version, name FROM schema_migrations').all(), [
+      { version: 1, name: 'baseline_health_tracker_schema' }
+    ]);
+    assert.equal(raw.prepare('SELECT COUNT(*) AS count FROM profile').get().count, 1);
+  } finally {
+    raw.close();
+  }
+});
+
+test('migrates an existing unversioned database without losing rows', () => {
+  const userDataPath = tempUserData();
+
+  db.init(userDataPath);
+  db.addRow('food_log', {
+    date: '2026-07-01',
+    meal_type: 'dinner',
+    description: 'Chicken',
+    net_carbs: 2,
+    protein: 45,
+    fat: 12,
+    calories: 300
+  });
+  db.close();
+
+  const raw = openRaw(userDataPath);
+  try {
+    raw.pragma('user_version = 0');
+    raw.prepare('DELETE FROM schema_migrations').run();
+  } finally {
+    raw.close();
+  }
+
+  db.init(userDataPath);
+  const data = db.getAllData();
+
+  assert.equal(db.getSchemaVersion(), db.SCHEMA_VERSION);
+  assert.equal(data.food_log.length, 1);
+  assert.equal(data.food_log[0].description, 'Chicken');
+});

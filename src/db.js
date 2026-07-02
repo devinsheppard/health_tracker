@@ -4,6 +4,7 @@ const Database = require('better-sqlite3');
 
 let db;
 let dbPath;
+const SCHEMA_VERSION = 1;
 
 const allowedTables = new Set([
   'glucose_readings',
@@ -39,6 +40,42 @@ function init(userDataPath) {
 }
 
 function migrate() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      version INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      applied_at TEXT NOT NULL
+    );
+  `);
+
+  const currentVersion = Number(db.pragma('user_version', { simple: true })) || 0;
+  const pending = migrations.filter((migration) => migration.version > currentVersion);
+  if (!pending.length) return;
+
+  const tx = db.transaction(() => {
+    let appliedVersion = currentVersion;
+    for (const migration of pending) {
+      migration.up();
+      db.prepare(`
+        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+        VALUES (?, ?, ?)
+      `).run(migration.version, migration.name, new Date().toISOString());
+      appliedVersion = migration.version;
+    }
+    db.pragma(`user_version = ${appliedVersion}`);
+  });
+  tx();
+}
+
+const migrations = [
+  {
+    version: 1,
+    name: 'baseline_health_tracker_schema',
+    up: createBaselineSchema
+  }
+];
+
+function createBaselineSchema() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS profile (
       id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -168,6 +205,10 @@ function migrate() {
     INSERT OR IGNORE INTO profile (id, goals, diet_type, protein_target, a1c_goal, theme, updated_at)
     VALUES (1, 'weight loss', 'keto', 160, 5.7, 'dark', ?)
   `).run(new Date().toISOString());
+}
+
+function getSchemaVersion() {
+  return Number(db.pragma('user_version', { simple: true })) || 0;
 }
 
 function one(sql, params = []) {
@@ -301,7 +342,9 @@ function clean(value) {
 }
 
 module.exports = {
+  SCHEMA_VERSION,
   init,
+  getSchemaVersion,
   getAllData,
   saveProfile,
   saveSettings,
