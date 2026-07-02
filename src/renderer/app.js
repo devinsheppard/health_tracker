@@ -232,13 +232,16 @@ function glucose() {
 
 function food() {
   const totals = foodTotals();
+  const burn = dailyBurn();
+  const balance = totals.calories - burn.tdee;
   setContent(`
     <div class="grid">
       ${metrics([
         ['Calories today', fmt(totals.calories), 'Logged intake'],
         ['Net carbs', `${fmt(totals.net_carbs)}g`, carbFlag(totals.net_carbs)],
         ['Protein', `${fmt(totals.protein)}g`, `Target ${fmt(state.profile?.protein_target || 160)}g`],
-        ['Fat', `${fmt(totals.fat)}g`, dietProfiles[state.profile?.diet_type] || 'Diet profile not set']
+        ['Fat', `${fmt(totals.fat)}g`, dietProfiles[state.profile?.diet_type] || 'Diet profile not set'],
+        ['Deficit / surplus', `${balance >= 0 ? '+' : ''}${fmt(balance)} cal`, `TDEE ${fmt(burn.tdee)} cal`]
       ])}
       ${panel('Recommendation', `<div class="alert ${recommendation().tone}">${recommendation().text}</div>`)}
       ${panel('Log meal', foodForm())}
