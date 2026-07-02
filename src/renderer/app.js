@@ -450,6 +450,8 @@ function settings() {
           <div class="actions">
             <button class="primary-button" id="backupBtn" type="button">Backup database</button>
             <button class="ghost-button" id="restoreBtn" type="button">Restore database</button>
+            <button class="ghost-button" id="exportFullJsonBtn" type="button">Export JSON</button>
+            <button class="ghost-button" id="importFullJsonBtn" type="button">Import JSON</button>
             <button class="danger-button" id="clearBtn" type="button">Clear all data</button>
           </div>
         </div>
@@ -471,6 +473,18 @@ function settings() {
     const result = await api.restore();
     if (!result.canceled) {
       notify(`Restore complete. Safety backup: ${result.safetyBackupPath}`);
+      await refresh();
+    }
+  });
+  document.getElementById('exportFullJsonBtn').addEventListener('click', async () => {
+    const result = await api.exportFullJson();
+    if (!result.canceled) notify(`JSON export saved: ${result.path}`);
+  });
+  document.getElementById('importFullJsonBtn').addEventListener('click', async () => {
+    if (!confirm('Import will replace the current local records after creating a safety backup. Continue?')) return;
+    const result = await api.importFullJson();
+    if (!result.canceled) {
+      notify(`JSON import complete. Safety backup: ${result.safetyBackupPath}`);
       await refresh();
     }
   });

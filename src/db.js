@@ -438,6 +438,42 @@ function clearAll() {
   return getAllData();
 }
 
+function exportFullJson() {
+  return {
+    format: 'my-health-tracker-full-json',
+    schemaVersion: SCHEMA_VERSION,
+    exportedAt: new Date().toISOString(),
+    data: {
+      profile: one('SELECT * FROM profile WHERE id = 1'),
+      tables: Object.fromEntries([...allowedTables].map((table) => [table, all(`SELECT * FROM ${table} ORDER BY id`)])),
+      daily_ledger: all('SELECT * FROM daily_ledger ORDER BY date')
+    }
+  };
+}
+
+function importFullJson(payload) {
+  validateImportPayload(payload);
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const safetyPath = path.join(dataDir, `my-health-tracker-before-json-import-${stamp}.sqlite`);
+  db.pragma('wal_checkpoint(TRUNCATE)');
+  fs.copyFileSync(dbPath, safetyPath);
+
+  const tx = db.transaction(() => {
+    for (const table of [...allowedTables].reverse()) {
+      db.prepare(`DELETE FROM ${table}`).run();
+    }
+    db.prepare('DELETE FROM daily_ledger').run();
+    db.prepare(`DELETE FROM sqlite_sequence WHERE name IN (${[...allowedTables].map(() => '?').join(',')})`).run(...allowedTables);
+    importProfile(payload.data.profile || {});
+    for (const table of allowedTables) {
+      for (const row of payload.data.tables[table] || []) importRow(table, row);
+    }
+    rebuildDailyLedger();
+  });
+  tx();
+  return { safetyBackupPath: safetyPath, data: getAllData() };
+}
+
 function rebuildDailyLedger() {
   const dates = ledgerDates();
   const insert = db.prepare(`
@@ -681,6 +717,46 @@ function validateProfile(profile) {
   for (const [field, options] of Object.entries(profileEnums)) enumField(profile, field, options, true);
 }
 
+function validateImportPayload(payload) {
+  if (!payload || payload.format !== 'my-health-tracker-full-json') {
+    throw new Error('Import file is not a My Health Tracker full JSON export.');
+  }
+  if (!payload.data || typeof payload.data !== 'object') throw new Error('Import file is missing data.');
+  if (!payload.data.tables || typeof payload.data.tables !== 'object') throw new Error('Import file is missing tables.');
+  validateProfile(payload.data.profile || {});
+  for (const table of allowedTables) {
+    const rows = payload.data.tables[table];
+    if (!Array.isArray(rows)) throw new Error(`Import file is missing table: ${table}`);
+    for (const row of rows) {
+      integerField(row, 'id', { min: 1 });
+      validateRow(table, row);
+    }
+  }
+}
+
+function importProfile(profile) {
+  const fields = [
+    'name', 'date_of_birth', 'sex', 'height_ft', 'height_in', 'current_weight',
+    'body_fat', 'lean_body_mass', 'goals', 'diet_type', 'medical_conditions',
+    'protein_target', 'a1c_goal', 'theme', 'eating_window'
+  ];
+  db.prepare(`
+    UPDATE profile SET
+      name = ?, date_of_birth = ?, sex = ?, height_ft = ?, height_in = ?,
+      current_weight = ?, body_fat = ?, lean_body_mass = ?, goals = ?,
+      diet_type = ?, medical_conditions = ?, protein_target = ?,
+      a1c_goal = ?, theme = ?, eating_window = ?, updated_at = ?
+    WHERE id = 1
+  `).run(...fields.map((field) => clean(profile[field])), new Date().toISOString());
+}
+
+function importRow(table, row) {
+  const columns = ['id', ...tableColumns[table]];
+  const placeholders = columns.map(() => '?').join(', ');
+  db.prepare(`INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`)
+    .run(...columns.map((column) => clean(row[column])));
+}
+
 function validateRow(table, row, partial = false) {
   validators[table]?.(row, partial);
 }
@@ -764,5 +840,7 @@ module.exports = {
   clearAll,
   backup,
   restore,
+  exportFullJson,
+  importFullJson,
   close
 };

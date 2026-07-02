@@ -83,3 +83,26 @@ ipcMain.handle('app:exportJson', async (_event, payload) => {
   fs.writeFileSync(result.filePath, JSON.stringify(payload, null, 2));
   return { canceled: false, path: result.filePath };
 });
+
+ipcMain.handle('app:exportFullJson', async () => {
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: 'Export full health tracker JSON',
+    defaultPath: `my-health-tracker-full-${new Date().toISOString().slice(0, 10)}.json`,
+    filters: [{ name: 'JSON', extensions: ['json'] }]
+  });
+  if (result.canceled || !result.filePath) return { canceled: true };
+  fs.writeFileSync(result.filePath, JSON.stringify(db.exportFullJson(), null, 2));
+  return { canceled: false, path: result.filePath };
+});
+
+ipcMain.handle('app:importFullJson', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Import full health tracker JSON',
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+    properties: ['openFile']
+  });
+  if (result.canceled || !result.filePaths.length) return { canceled: true };
+  const payload = JSON.parse(fs.readFileSync(result.filePaths[0], 'utf8'));
+  const imported = db.importFullJson(payload);
+  return { canceled: false, safetyBackupPath: imported.safetyBackupPath };
+});

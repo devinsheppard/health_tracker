@@ -1,0 +1,112 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const test = require('node:test');
+
+const db = require('../src/db');
+
+function tempUserData() {
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'health-tracker-json-'));
+}
+
+test.afterEach(() => {
+  db.close();
+});
+
+test('exports and imports full JSON while preserving ids and rebuilding ledger', () => {
+  db.init(tempUserData());
+  db.saveProfile({
+    name: 'Import Export',
+    sex: 'male',
+    goals: 'weight loss',
+    diet_type: 'keto',
+    protein_target: 160,
+    a1c_goal: 5.7,
+    theme: 'dark'
+  });
+  const session = db.addRow('workout_sessions', {
+    date: '2026-07-01',
+    pre_glucose: 110,
+    post_glucose: 100,
+    duration: 60,
+    effort: 'moderate',
+    notes: 'lift'
+  });
+  const exercise = db.addRow('workout_exercises', {
+    session_id: session.id,
+    muscle_group: 'Chest',
+    exercise: 'Bench press',
+    sets: 3,
+    reps: 10,
+    weight: 100,
+    seconds: null,
+    mode: 'bilateral',
+    pounds: 3000
+  });
+  db.addRow('food_log', {
+    date: '2026-07-01',
+    meal_type: 'dinner',
+    description: 'Chicken',
+    net_carbs: 2,
+    protein: 45,
+    fat: 12,
+    calories: 300
+  });
+
+  const exported = db.exportFullJson();
+  assert.equal(exported.format, 'my-health-tracker-full-json');
+  assert.equal(exported.data.profile.name, 'Import Export');
+  assert.equal(exported.data.tables.workout_sessions[0].id, session.id);
+  assert.equal(exported.data.tables.workout_exercises[0].id, exercise.id);
+
+  db.clearAll();
+  assert.equal(db.getAllData().food_log.length, 0);
+
+  const imported = db.importFullJson(exported);
+  const data = imported.data;
+
+  assert.equal(fs.existsSync(imported.safetyBackupPath), true);
+  assert.equal(data.profile.name, 'Import Export');
+  assert.equal(data.workout_sessions[0].id, session.id);
+  assert.equal(data.workout_exercises[0].session_id, session.id);
+  assert.equal(data.food_log[0].description, 'Chicken');
+  assert.equal(data.daily_ledger[0].workout_volume, 3000);
+  assert.equal(data.daily_ledger[0].food_calories, 300);
+});
+
+test('rejects invalid full JSON imports without replacing current rows', () => {
+  db.init(tempUserData());
+  db.addRow('food_log', {
+    date: '2026-07-01',
+    meal_type: 'dinner',
+    description: 'Keep me',
+    net_carbs: 2,
+    protein: 45,
+    fat: 12,
+    calories: 300
+  });
+
+  assert.throws(() => db.importFullJson({ format: 'wrong', data: {} }), /full JSON export/);
+  assert.throws(() => db.importFullJson({
+    format: 'my-health-tracker-full-json',
+    data: {
+      profile: {},
+      tables: {
+        glucose_readings: [],
+        food_log: [{ id: 1, date: '2026-07-01', meal_type: 'breakfast', calories: -1 }],
+        workout_sessions: [],
+        workout_exercises: [],
+        activities: [],
+        weight_log: [],
+        sleep_log: [],
+        medications: [],
+        lab_results: []
+      }
+    }
+  }), /Validation failed: calories/);
+
+  const data = db.getAllData();
+  assert.equal(data.food_log.length, 1);
+  assert.equal(data.food_log[0].description, 'Keep me');
+});

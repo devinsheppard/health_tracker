@@ -10,5 +10,7 @@ contextBridge.exposeInMainWorld('healthApi', {
   clearAll: () => ipcRenderer.invoke('data:clearAll'),
   backup: () => ipcRenderer.invoke('db:backup'),
   restore: () => ipcRenderer.invoke('db:restore'),
-  exportJson: (payload) => ipcRenderer.invoke('app:exportJson', payload)
+  exportJson: (payload) => ipcRenderer.invoke('app:exportJson', payload),
+  exportFullJson: () => ipcRenderer.invoke('app:exportFullJson'),
+  importFullJson: () => ipcRenderer.invoke('app:importFullJson')
 });
