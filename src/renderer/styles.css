@@ -182,8 +182,16 @@ h3 {
   gap: 14px;
 }
 
+.grid > * {
+  min-width: 0;
+}
+
 .two {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.workout-grid {
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, .8fr);
 }
 
 .three {
@@ -205,6 +213,16 @@ h3 {
 
 .panel {
   padding: 16px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.subpanel {
+  display: grid;
+  gap: 12px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
 }
 
 .metric {
@@ -282,10 +300,25 @@ textarea {
   align-items: center;
 }
 
+.table-wrap .actions {
+  min-width: max-content;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
+}
+
+.table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.table-wrap table {
+  min-width: 100%;
 }
 
 th,
@@ -294,6 +327,16 @@ td {
   padding: 10px 8px;
   text-align: left;
   vertical-align: top;
+  white-space: nowrap;
+}
+
+td {
+  max-width: 280px;
+}
+
+td:nth-child(6) {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 th {
@@ -358,7 +401,15 @@ th {
   .four,
   .three,
   .two,
+  .workout-grid,
   .form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 960px) {
+  .two,
+  .workout-grid {
+    grid-template-columns: 1fr;
   }
 }

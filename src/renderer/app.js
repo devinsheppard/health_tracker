@@ -71,6 +71,11 @@ const exerciseGroups = {
 let state = {};
 let currentPage = 'dashboard';
 let charts = [];
+let selectedWorkoutSessionId = null;
+let editingWorkoutSessionId = null;
+let editingExerciseId = null;
+let workoutSessionDraft = {};
+let draftWorkoutExercises = [];
 
 boot();
 
@@ -240,7 +245,14 @@ function food() {
 
 function workouts() {
   const pounds = lifetimePounds();
-  const latestSession = state.workout_sessions[0];
+  const sessions = state.workout_sessions || [];
+  if (selectedWorkoutSessionId && !sessions.some((session) => session.id === selectedWorkoutSessionId)) {
+    selectedWorkoutSessionId = null;
+  }
+  const selectedSession = sessions.find((session) => session.id === selectedWorkoutSessionId) || sessions[0];
+  if (selectedSession) selectedWorkoutSessionId = selectedSession.id;
+  const editingSession = sessions.find((session) => session.id === editingWorkoutSessionId);
+  const editingExercise = (state.workout_exercises || []).find((exercise) => exercise.id === editingExerciseId);
   setContent(`
     <div class="grid">
       ${metrics([
@@ -250,16 +262,17 @@ function workouts() {
         ['Workout burn today', `${fmt(dailyBurn().workoutBurn)} cal`, 'Resistance training MET estimate']
       ])}
       ${panel('Challenge progress', `<div class="progress"><span style="width:${Math.min(100, pounds.total / 1000000 * 100)}%"></span></div>`)}
-      ${panel('Add workout session', workoutSessionForm())}
-      ${latestSession ? panel('Add exercise to latest session', exerciseForm(latestSession.id)) : panel('Add exercise', '<p class="muted">Create a workout session first.</p>')}
-      <div class="grid two">
+      ${panel(editingSession ? 'Edit workout session' : 'Add workout session', workoutSessionForm(editingSession))}
+      <div class="grid workout-grid">
         ${panel('Sessions', workoutSessionsTable())}
         ${panel('Per-exercise lifetime totals', exerciseTotalsTable())}
       </div>
+      ${selectedSession ? panel(`${editingExercise ? 'Edit exercise' : 'Selected session exercises'}`, workoutExercisesTable(selectedSession.id, editingExercise)) : ''}
     </div>
   `);
   bindWorkoutSessionForm();
-  if (latestSession) bindExerciseForm();
+  if (editingExercise) bindExerciseForm();
+  bindWorkoutActions();
   bindDeletes();
 }
 
@@ -418,26 +431,86 @@ function foodForm() {
   ])}<button class="primary-button">Save meal</button></form>`;
 }
 
-function workoutSessionForm() {
-  return `<form id="workoutSessionForm">${fields([
-    ['date', 'Date', 'date', today()],
-    ['pre_glucose', 'Pre-workout glucose', 'number'],
-    ['post_glucose', 'Post-workout glucose', 'number'],
-    ['duration', 'Duration (minutes)', 'number'],
-    ['effort', 'Effort', 'select', 'moderate', ['light', 'moderate', 'vigorous']]
-  ])}<label>Notes<textarea name="notes"></textarea></label><button class="primary-button">Save session</button></form>`;
+function workoutSessionForm(row = null) {
+  const draft = row ? row : workoutSessionDraft;
+  const estimate = workoutCalorieEstimate(draft, draftWorkoutExercises);
+  return `<form id="workoutSessionForm">
+    ${row ? `<input type="hidden" name="id" value="${row.id}">` : ''}
+    ${fields([
+      ['date', 'Date', 'date', draft?.date || today()],
+      ['pre_glucose', 'Pre-workout glucose', 'number', draft?.pre_glucose || ''],
+      ['post_glucose', 'Post-workout glucose', 'number', draft?.post_glucose || ''],
+      ['duration', 'Duration (minutes)', 'number', draft?.duration || ''],
+      ['effort', 'Effort', 'select', draft?.effort || 'moderate', ['light', 'moderate', 'vigorous']]
+    ])}
+    <label>Notes<textarea name="notes">${draft?.notes || ''}</textarea></label>
+    ${row ? '' : `
+      <div class="subpanel">
+        <h3>Add exercise</h3>
+        ${draftExerciseFields()}
+        <div class="actions">
+          <button class="ghost-button" data-add-draft-exercise type="button">Add exercise</button>
+          ${draftWorkoutExercises.length ? '<button class="ghost-button" data-clear-draft-exercises type="button">Clear exercises</button>' : ''}
+        </div>
+        ${draftExerciseTable()}
+      </div>
+      <div class="alert">
+        Estimated workout burn: <strong id="workoutEstimate">${fmt(estimate.calories)} cal</strong>
+        <span class="muted"> | ${fmt(estimate.duration)} min | ${fmt(estimate.pounds)} lbs drafted</span>
+      </div>
+    `}
+    <div class="actions">
+      <button class="primary-button">${row ? 'Update session' : 'Add session'}</button>
+      ${row ? '<button class="ghost-button" data-cancel-workout-edit type="button">Cancel edit</button>' : ''}
+    </div>
+  </form>`;
 }
 
-function exerciseForm(sessionId) {
+function exerciseForm(sessionId, row = null) {
   const groups = Object.keys(exerciseGroups);
-  return `<form id="exerciseForm"><input type="hidden" name="session_id" value="${sessionId}" />${fields([
-    ['muscle_group', 'Muscle group', 'select', groups[0], groups],
-    ['exercise', 'Exercise', 'select', exerciseGroups[groups[0]][0][0], exerciseGroups[groups[0]].map((x) => x[0])],
-    ['sets', 'Sets', 'number'],
-    ['reps', 'Reps', 'number'],
-    ['weight', 'Weight (lbs)', 'number'],
-    ['seconds', 'Seconds for timed exercises', 'number']
-  ])}<button class="primary-button">Save exercise</button></form>`;
+  const group = row?.muscle_group || groups[0];
+  return `<form id="exerciseForm">
+    <input type="hidden" name="session_id" value="${sessionId}" />
+    ${row ? `<input type="hidden" name="id" value="${row.id}" />` : ''}
+    ${fields([
+      ['muscle_group', 'Muscle group', 'select', group, groups],
+      ['exercise', 'Exercise', 'select', row?.exercise || exerciseGroups[group][0][0], exerciseGroups[group].map((x) => x[0])],
+      ['sets', 'Sets', 'number', row?.sets || ''],
+      ['reps', 'Reps', 'number', row?.reps || ''],
+      ['weight', 'Weight (lbs)', 'number', row?.weight || ''],
+      ['seconds', 'Seconds for timed exercises', 'number', row?.seconds || '']
+    ])}
+    <div class="actions">
+      <button class="primary-button">${row ? 'Update exercise' : 'Save exercise'}</button>
+      ${row ? '<button class="ghost-button" data-cancel-exercise-edit type="button">Cancel edit</button>' : ''}
+    </div>
+  </form>`;
+}
+
+function draftExerciseFields() {
+  const groups = Object.keys(exerciseGroups);
+  const group = workoutSessionDraft.ex_muscle_group || groups[0];
+  return fields([
+    ['ex_muscle_group', 'Muscle group', 'select', group, groups],
+    ['ex_exercise', 'Exercise', 'select', workoutSessionDraft.ex_exercise || exerciseGroups[group][0][0], exerciseGroups[group].map((x) => x[0])],
+    ['ex_sets', 'Sets', 'number', workoutSessionDraft.ex_sets || ''],
+    ['ex_reps', 'Reps', 'number', workoutSessionDraft.ex_reps || ''],
+    ['ex_weight', 'Weight (lbs)', 'number', workoutSessionDraft.ex_weight || ''],
+    ['ex_seconds', 'Seconds for timed exercises', 'number', workoutSessionDraft.ex_seconds || '']
+  ]);
+}
+
+function draftExerciseTable() {
+  return table(['Muscle group', 'Exercise', 'Sets', 'Reps', 'Weight', 'Time', 'Pounds', ''], draftWorkoutExercises.map((exercise, index) => [
+    exercise.muscle_group,
+    exercise.exercise,
+    fmt(exercise.sets),
+    fmt(exercise.reps),
+    exercise.mode === 'bodyweight' ? 'bodyweight' : fmt(exercise.weight),
+    exercise.mode === 'timed' ? `${fmt(exercise.seconds)} sec` : '',
+    fmt(exercise.pounds),
+    `<button class="mini-button" data-remove-draft-exercise="${index}" type="button">Remove</button>`
+  ]));
 }
 
 function activityForm() {
@@ -519,21 +592,80 @@ function bindForm(id, tableName) {
 }
 
 function bindWorkoutSessionForm() {
-  document.getElementById('workoutSessionForm').addEventListener('submit', async (event) => {
+  const form = document.getElementById('workoutSessionForm');
+  const groupSelect = form.elements.ex_muscle_group;
+  const exerciseSelect = form.elements.ex_exercise;
+  form.addEventListener('input', () => {
+    if (!form.elements.id) {
+      workoutSessionDraft = formData(form);
+      updateWorkoutEstimate(form);
+    }
+  });
+  groupSelect?.addEventListener('change', () => {
+    workoutSessionDraft = formData(form);
+    workoutSessionDraft.ex_exercise = exerciseGroups[groupSelect.value][0][0];
+    renderPage('workouts');
+  });
+  exerciseSelect?.addEventListener('change', () => {
+    workoutSessionDraft = formData(form);
+  });
+  document.querySelector('[data-add-draft-exercise]')?.addEventListener('click', () => {
+    workoutSessionDraft = formData(form);
+    const exercise = draftExerciseFromForm(workoutSessionDraft);
+    if (!exercise.exercise) return;
+    draftWorkoutExercises.push(exercise);
+    workoutSessionDraft.ex_sets = '';
+    workoutSessionDraft.ex_reps = '';
+    workoutSessionDraft.ex_weight = '';
+    workoutSessionDraft.ex_seconds = '';
+    renderPage('workouts');
+  });
+  document.querySelector('[data-clear-draft-exercises]')?.addEventListener('click', () => {
+    workoutSessionDraft = formData(form);
+    draftWorkoutExercises = [];
+    renderPage('workouts');
+  });
+  document.querySelectorAll('[data-remove-draft-exercise]').forEach((button) => {
+    button.addEventListener('click', () => {
+      workoutSessionDraft = formData(form);
+      draftWorkoutExercises.splice(Number(button.dataset.removeDraftExercise), 1);
+      renderPage('workouts');
+    });
+  });
+  form.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const body = formData(event.target);
+    const formBody = formData(event.target);
+    const body = workoutSessionBody(formBody);
     await save(async () => {
-      const result = await api.add('workout_sessions', body);
-      const met = { light: 3.5, moderate: 5, vigorous: 6 }[body.effort] || 5;
-      await api.add('activities', {
+      const sessionId = Number(body.id);
+      delete body.id;
+      const estimate = workoutCalorieEstimate(body, draftWorkoutExercises);
+      if (!n(body.duration) && estimate.duration) body.duration = estimate.duration;
+      const met = workoutMet(body.effort);
+      const activity = {
         date: body.date,
         name: `Resistance training (${body.effort})`,
         met,
         duration: body.duration,
-        calories: metCalories(met, body.duration),
+        calories: sessionId ? workoutCalorieEstimate(body, exercisesForSession(sessionId)).calories : estimate.calories,
         notes: body.notes,
         kind: 'workout'
-      });
+      };
+      if (sessionId) {
+        await api.update('workout_sessions', sessionId, body);
+        const linked = linkedWorkoutActivity(sessionId) || findLegacyWorkoutActivity(sessionId);
+        if (linked) await api.update('activities', linked.id, { ...activity, source_session_id: sessionId });
+        editingWorkoutSessionId = null;
+        return { id: sessionId };
+      }
+      const result = await api.add('workout_sessions', body);
+      selectedWorkoutSessionId = Number(result.id);
+      await api.add('activities', { ...activity, source_session_id: result.id });
+      for (const exercise of draftWorkoutExercises) {
+        await api.add('workout_exercises', { ...exercise, session_id: result.id });
+      }
+      workoutSessionDraft = {};
+      draftWorkoutExercises = [];
       return result;
     });
   });
@@ -549,9 +681,51 @@ function bindExerciseForm() {
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     const body = formData(form);
+    const exerciseId = Number(body.id);
+    delete body.id;
     body.mode = exerciseMode(body.muscle_group, body.exercise);
     body.pounds = exercisePounds(body);
-    await save(() => api.add('workout_exercises', body));
+    await save(() => {
+      if (exerciseId) {
+        editingExerciseId = null;
+        return api.update('workout_exercises', exerciseId, body);
+      }
+      return api.add('workout_exercises', body);
+    });
+  });
+}
+
+function bindWorkoutActions() {
+  document.querySelectorAll('[data-select-session]').forEach((button) => {
+    button.addEventListener('click', () => {
+      selectedWorkoutSessionId = Number(button.dataset.selectSession);
+      editingExerciseId = null;
+      renderPage('workouts');
+    });
+  });
+  document.querySelectorAll('[data-edit-session]').forEach((button) => {
+    button.addEventListener('click', () => {
+      selectedWorkoutSessionId = Number(button.dataset.editSession);
+      editingWorkoutSessionId = Number(button.dataset.editSession);
+      editingExerciseId = null;
+      renderPage('workouts');
+    });
+  });
+  document.querySelectorAll('[data-edit-exercise]').forEach((button) => {
+    button.addEventListener('click', () => {
+      editingExerciseId = Number(button.dataset.editExercise);
+      const exercise = (state.workout_exercises || []).find((row) => row.id === editingExerciseId);
+      if (exercise) selectedWorkoutSessionId = exercise.session_id;
+      renderPage('workouts');
+    });
+  });
+  document.querySelector('[data-cancel-workout-edit]')?.addEventListener('click', () => {
+    editingWorkoutSessionId = null;
+    renderPage('workouts');
+  });
+  document.querySelector('[data-cancel-exercise-edit]')?.addEventListener('click', () => {
+    editingExerciseId = null;
+    renderPage('workouts');
   });
 }
 
@@ -594,6 +768,34 @@ function formData(form) {
   return Object.fromEntries(new FormData(form).entries());
 }
 
+function workoutSessionBody(body) {
+  const cleanBody = { ...body };
+  for (const key of Object.keys(cleanBody)) {
+    if (key.startsWith('ex_')) delete cleanBody[key];
+  }
+  return cleanBody;
+}
+
+function draftExerciseFromForm(body) {
+  const exercise = {
+    muscle_group: body.ex_muscle_group,
+    exercise: body.ex_exercise,
+    sets: body.ex_sets,
+    reps: body.ex_reps,
+    weight: body.ex_weight,
+    seconds: body.ex_seconds
+  };
+  exercise.mode = exerciseMode(exercise.muscle_group, exercise.exercise);
+  exercise.pounds = exercisePounds(exercise);
+  return exercise;
+}
+
+function updateWorkoutEstimate(form) {
+  const estimate = workoutCalorieEstimate(workoutSessionBody(formData(form)), draftWorkoutExercises);
+  const target = document.getElementById('workoutEstimate');
+  if (target) target.textContent = `${fmt(estimate.calories)} cal`;
+}
+
 async function save(fn) {
   document.getElementById('saveStatus').textContent = 'Saving...';
   await fn();
@@ -611,7 +813,7 @@ function del(tableName, id) {
 
 function table(headers, rows) {
   if (!rows.length) return '<p class="muted">No entries yet.</p>';
-  return `<table><thead><tr>${headers.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell ?? ''}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  return `<div class="table-wrap"><table><thead><tr>${headers.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell ?? ''}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 
 function glucoseSummary() {
@@ -715,6 +917,36 @@ function metCalories(met, minutes) {
   return n(met) * lbToKg(profileWeight()) * (n(minutes) / 60);
 }
 
+function workoutMet(effort) {
+  return { light: 3.5, moderate: 5, vigorous: 6 }[effort] || 5;
+}
+
+function exercisesForSession(sessionId) {
+  return (state.workout_exercises || []).filter((exercise) => n(exercise.session_id) === n(sessionId));
+}
+
+function estimatedExerciseMinutes(exercises) {
+  const setMinutes = exercises.reduce((sum, exercise) => {
+    if (exercise.mode === 'timed') return sum + n(exercise.seconds) / 60;
+    return sum + n(exercise.sets) * 1.5;
+  }, 0);
+  return Math.max(0, setMinutes);
+}
+
+function workoutCalorieEstimate(session, exercises = []) {
+  const duration = n(session?.duration) || estimatedExerciseMinutes(exercises);
+  const hours = duration / 60;
+  const pounds = exercises.reduce((sum, exercise) => sum + n(exercise.pounds), 0);
+  const weightCalories = workoutMet(session?.effort) * lbToKg(profileWeight()) * hours;
+  const bmrCalories = bmr() * (duration / 1440);
+  const loadFactor = 1 + Math.min(0.25, pounds / Math.max(1, profileWeight()) / 1000);
+  return {
+    calories: (weightCalories + bmrCalories) * loadFactor,
+    duration,
+    pounds
+  };
+}
+
 function exerciseMode(group, exercise) {
   return (exerciseGroups[group] || []).find(([name]) => name === exercise)?.[1] || 'bilateral';
 }
@@ -742,14 +974,14 @@ function lifetimePounds() {
 
 function workoutSessionsTable() {
   const exercises = state.workout_exercises || [];
-  return table(['Date', 'Duration', 'Effort', 'Pounds', 'Glucose', 'Notes', ''], (state.workout_sessions || []).map((s) => [
+  return table(['Date', 'Duration', 'Effort', 'Pounds', 'Glucose', 'Notes', 'Actions'], (state.workout_sessions || []).map((s) => [
     s.date,
     `${fmt(s.duration)} min`,
     s.effort,
     fmt(exercises.filter((e) => e.session_id === s.id).reduce((sum, e) => sum + n(e.pounds), 0)),
     `${fmt(s.pre_glucose)} / ${fmt(s.post_glucose)}`,
     s.notes || '',
-    del('workout_sessions', s.id)
+    `<div class="actions"><button class="mini-button" data-select-session="${s.id}" type="button">Select</button><button class="mini-button" data-edit-session="${s.id}" type="button">Edit</button>${del('workout_sessions', s.id)}</div>`
   ]));
 }
 
@@ -757,6 +989,37 @@ function exerciseTotalsTable() {
   const totals = {};
   for (const row of state.workout_exercises || []) totals[row.exercise] = (totals[row.exercise] || 0) + n(row.pounds);
   return table(['Exercise', 'Lifetime pounds'], Object.entries(totals).sort((a, b) => b[1] - a[1]).map(([name, pounds]) => [name, fmt(pounds)]));
+}
+
+function workoutExercisesTable(sessionId, editingExercise = null) {
+  const rows = (state.workout_exercises || []).filter((exercise) => exercise.session_id === sessionId);
+  const editForm = editingExercise ? `<div class="subpanel">${exerciseForm(sessionId, editingExercise)}</div>` : '';
+  return `${editForm}${table(['Muscle group', 'Exercise', 'Sets', 'Reps', 'Weight', 'Time', 'Pounds', 'Actions'], rows.map((exercise) => [
+    exercise.muscle_group,
+    exercise.exercise,
+    fmt(exercise.sets),
+    fmt(exercise.reps),
+    exercise.mode === 'bodyweight' ? 'bodyweight' : fmt(exercise.weight),
+    exercise.mode === 'timed' ? `${fmt(exercise.seconds)} sec` : '',
+    fmt(exercise.pounds),
+    `<div class="actions"><button class="mini-button" data-edit-exercise="${exercise.id}" type="button">Edit</button>${del('workout_exercises', exercise.id)}</div>`
+  ]))}`;
+}
+
+function linkedWorkoutActivity(sessionId) {
+  return (state.activities || []).find((activity) => n(activity.source_session_id) === n(sessionId));
+}
+
+function findLegacyWorkoutActivity(sessionId) {
+  const session = (state.workout_sessions || []).find((row) => row.id === sessionId);
+  if (!session) return null;
+  return (state.activities || []).find((activity) =>
+    activity.kind === 'workout' &&
+    !activity.source_session_id &&
+    activity.date === session.date &&
+    n(activity.duration) === n(session.duration) &&
+    String(activity.name || '').includes(session.effort || '')
+  );
 }
 
 function weightStats() {

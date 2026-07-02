@@ -22,7 +22,7 @@ const tableColumns = {
   food_log: ['date', 'meal_type', 'description', 'net_carbs', 'protein', 'fat', 'calories'],
   workout_sessions: ['date', 'pre_glucose', 'post_glucose', 'duration', 'effort', 'notes'],
   workout_exercises: ['session_id', 'muscle_group', 'exercise', 'sets', 'reps', 'weight', 'seconds', 'mode', 'pounds'],
-  activities: ['date', 'name', 'met', 'duration', 'calories', 'notes', 'kind'],
+  activities: ['date', 'name', 'met', 'duration', 'calories', 'notes', 'kind', 'source_session_id'],
   weight_log: ['date', 'weight', 'body_fat', 'lean_body_mass', 'notes'],
   sleep_log: ['date', 'hours', 'quality', 'morning_glucose', 'notes'],
   medications: ['name', 'dose', 'frequency', 'timing', 'purpose_notes'],
@@ -117,6 +117,7 @@ function migrate() {
       calories REAL,
       notes TEXT,
       kind TEXT DEFAULT 'activity',
+      source_session_id REAL,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -160,6 +161,8 @@ function migrate() {
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
   `);
+
+  ensureColumn('activities', 'source_session_id', 'REAL');
 
   db.prepare(`
     INSERT OR IGNORE INTO profile (id, goals, diet_type, protein_target, a1c_goal, theme, updated_at)
@@ -233,8 +236,18 @@ function updateRow(table, id, row) {
 
 function deleteRow(table, id) {
   ensureTable(table);
+  if (table === 'workout_sessions') {
+    db.prepare('DELETE FROM activities WHERE source_session_id = ?').run(id);
+  }
   db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(id);
   return getAllData();
+}
+
+function ensureColumn(table, column, definition) {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all().map((row) => row.name);
+  if (!columns.includes(column)) {
+    db.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`).run();
+  }
 }
 
 function clearAll() {
