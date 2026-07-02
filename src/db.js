@@ -4,6 +4,7 @@ const Database = require('better-sqlite3');
 
 let db;
 let dbPath;
+let dataDir;
 const SCHEMA_VERSION = 2;
 
 const allowedTables = new Set([
@@ -113,10 +114,9 @@ const profileEnums = {
 
 function init(userDataPath) {
   fs.mkdirSync(userDataPath, { recursive: true });
+  dataDir = userDataPath;
   dbPath = path.join(userDataPath, 'my-health-tracker.sqlite');
-  db = new Database(dbPath);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
+  db = openDatabase(dbPath);
   migrate();
 }
 
@@ -576,24 +576,82 @@ function collectNotes(target, label, sql, date) {
   }
 }
 
-function backup(targetPath) {
-  db.pragma('wal_checkpoint(RESTART)');
-  fs.copyFileSync(dbPath, targetPath);
+async function backup(targetPath) {
+  assertWritableBackupTarget(targetPath);
+  db.pragma('wal_checkpoint(TRUNCATE)');
+  await db.backup(targetPath);
+  validateDatabaseFile(targetPath);
+  return { path: targetPath };
 }
 
 function restore(sourcePath) {
+  validateDatabaseFile(sourcePath);
+  db.pragma('wal_checkpoint(TRUNCATE)');
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const safetyPath = path.join(dataDir, `my-health-tracker-before-restore-${stamp}.sqlite`);
+  const tempPath = path.join(dataDir, `my-health-tracker-restore-${stamp}.tmp`);
+
+  fs.copyFileSync(dbPath, safetyPath);
+  fs.copyFileSync(sourcePath, tempPath);
+  validateDatabaseFile(tempPath);
+
   close();
-  fs.copyFileSync(sourcePath, dbPath);
-  db = new Database(dbPath);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
-  migrate();
+  try {
+    removeSqliteSidecars(dbPath);
+    fs.renameSync(tempPath, dbPath);
+    db = openDatabase(dbPath);
+    migrate();
+    rebuildDailyLedger();
+    return { safetyBackupPath: safetyPath };
+  } catch (error) {
+    removeSqliteSidecars(dbPath);
+    fs.copyFileSync(safetyPath, dbPath);
+    db = openDatabase(dbPath);
+    migrate();
+    throw error;
+  } finally {
+    if (fs.existsSync(tempPath)) fs.rmSync(tempPath, { force: true });
+  }
 }
 
 function close() {
   if (db) {
     db.close();
     db = null;
+  }
+}
+
+function openDatabase(filePath) {
+  const database = new Database(filePath);
+  database.pragma('journal_mode = WAL');
+  database.pragma('foreign_keys = ON');
+  return database;
+}
+
+function validateDatabaseFile(filePath) {
+  if (!fs.existsSync(filePath)) throw new Error('Backup file does not exist.');
+  const candidate = new Database(filePath, { readonly: true, fileMustExist: true });
+  try {
+    const integrity = candidate.pragma('quick_check', { simple: true });
+    if (integrity !== 'ok') throw new Error(`Backup integrity check failed: ${integrity}`);
+    const tables = candidate.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((row) => row.name);
+    if (!tables.includes('profile')) throw new Error('Backup is not a My Health Tracker database.');
+  } finally {
+    candidate.close();
+  }
+}
+
+function assertWritableBackupTarget(targetPath) {
+  const resolvedTarget = path.resolve(targetPath);
+  const resolvedDb = path.resolve(dbPath);
+  if (resolvedTarget === resolvedDb) throw new Error('Backup target cannot replace the active database.');
+  fs.mkdirSync(path.dirname(resolvedTarget), { recursive: true });
+}
+
+function removeSqliteSidecars(filePath) {
+  for (const suffix of ['', '-wal', '-shm']) {
+    const target = `${filePath}${suffix}`;
+    if (fs.existsSync(target)) fs.rmSync(target, { force: true });
   }
 }
 

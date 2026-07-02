@@ -446,7 +446,7 @@ function settings() {
       ${panel('Profile and goals', profileForm(p))}
       ${panel('Database', `
         <div class="grid">
-          <p class="muted">Backup exports the full SQLite database. Restore replaces the local database with the selected backup.</p>
+          <p class="muted">Backup exports a checked SQLite copy. Restore validates the selected backup and creates a safety copy before replacing the local database.</p>
           <div class="actions">
             <button class="primary-button" id="backupBtn" type="button">Backup database</button>
             <button class="ghost-button" id="restoreBtn" type="button">Restore database</button>
@@ -469,7 +469,10 @@ function settings() {
   document.getElementById('restoreBtn').addEventListener('click', async () => {
     if (!confirm('Restore will replace the current local database. Continue?')) return;
     const result = await api.restore();
-    if (!result.canceled) await refresh();
+    if (!result.canceled) {
+      notify(`Restore complete. Safety backup: ${result.safetyBackupPath}`);
+      await refresh();
+    }
   });
   document.getElementById('clearBtn').addEventListener('click', async () => {
     if (!confirm('Clear all health tracker data? This cannot be undone unless you have a backup.')) return;

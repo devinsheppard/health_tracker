@@ -57,8 +57,8 @@ ipcMain.handle('db:backup', async () => {
 
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const target = path.join(result.filePaths[0], `my-health-tracker-backup-${stamp}.sqlite`);
-  db.backup(target);
-  return { canceled: false, path: target };
+  const backup = await db.backup(target);
+  return { canceled: false, path: backup.path };
 });
 
 ipcMain.handle('db:restore', async () => {
@@ -69,8 +69,8 @@ ipcMain.handle('db:restore', async () => {
   });
   if (result.canceled || !result.filePaths.length) return { canceled: true };
 
-  db.restore(result.filePaths[0]);
-  return { canceled: false };
+  const restore = db.restore(result.filePaths[0]);
+  return { canceled: false, safetyBackupPath: restore.safetyBackupPath };
 });
 
 ipcMain.handle('app:exportJson', async (_event, payload) => {
