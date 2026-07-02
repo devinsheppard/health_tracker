@@ -1,5 +1,11 @@
 const api = window.healthApi;
-const today = () => new Date().toISOString().slice(0, 10);
+const localDateKey = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+const today = () => localDateKey();
 const nowTime = () => new Date().toTimeString().slice(0, 5);
 const lbToKg = (lb) => n(lb) * 0.45359237;
 const kgFromLbm = (weight, bodyFat) => lbToKg(n(weight) * (1 - n(bodyFat) / 100));
@@ -676,7 +682,7 @@ function recentAverages(_tableName, days, calculator) {
   const dates = Array.from({ length: days }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    return d.toISOString().slice(0, 10);
+    return localDateKey(d);
   });
   const sums = dates.map(calculator).reduce((acc, row) => {
     for (const [key, value] of Object.entries(row)) acc[key] = (acc[key] || 0) + n(value);
@@ -724,7 +730,7 @@ function lifetimePounds() {
   const sessions = state.workout_sessions || [];
   const startWeek = new Date();
   startWeek.setDate(startWeek.getDate() - startWeek.getDay());
-  const weekIso = startWeek.toISOString().slice(0, 10);
+  const weekIso = localDateKey(startWeek);
   const monthIso = today().slice(0, 7);
   return {
     total,
