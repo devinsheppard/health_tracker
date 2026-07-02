@@ -2,6 +2,7 @@ const api = window.healthApi;
 const calc = window.HealthCalculations;
 const html = window.HealthHtml;
 const catalog = window.HealthCatalog;
+const trendTools = window.HealthTrends;
 const {
   n,
   leanBodyMass,
@@ -23,6 +24,7 @@ const {
   cellHtml
 } = html;
 const { pages, dietProfiles, activities, exerciseGroups } = catalog;
+const { ledgerTrendSeries, trendDelta } = trendTools;
 const localDateKey = (date = new Date()) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -167,6 +169,9 @@ function dashboard() {
   const week = weeklyBalance();
   const pounds = lifetimePounds();
   const glucoseStats = glucoseSummary();
+  const trends = ledgerTrendSeries(state.daily_ledger || [], 30, bmr());
+  const weightDelta = trendDelta(trends.weight);
+  const glucoseDelta = trendDelta(trends.glucose);
   const proteinTarget = n(state.profile?.protein_target) || 160;
   const surplus = totals.calories - burn.tdee;
   setContent(`
@@ -178,7 +183,9 @@ function dashboard() {
         ['Glucose status', glucoseStats.count ? `${fmt(glucoseStats.avg)} mg/dL` : '--', glucoseStats.count ? `Est. A1c ${fmt(glucoseStats.a1c, 1)}%` : 'No readings yet'],
         ['Estimated A1C', glucoseStats.count ? `${fmt(glucoseStats.a1c, 1)}%` : '--', glucoseStats.count ? `${glucoseStats.count} glucose readings` : 'No readings yet'],
         ['Weekly deficit / surplus', `${week.balance >= 0 ? '+' : ''}${fmt(week.balance)} cal`, `${fmt(week.calories)} in vs ${fmt(week.tdee)} TDEE`],
-        ['Protein', `${fmt(totals.protein)}g`, `Target ${fmt(proteinTarget)}g`]
+        ['Protein', `${fmt(totals.protein)}g`, `Target ${fmt(proteinTarget)}g`],
+        ['30-day weight trend', weightDelta === null ? '--' : `${weightDelta >= 0 ? '+' : ''}${fmt(weightDelta, 1)} lbs`, 'Based on daily ledger weights'],
+        ['30-day glucose trend', glucoseDelta === null ? '--' : `${glucoseDelta >= 0 ? '+' : ''}${fmt(glucoseDelta)} mg/dL`, 'Daily average glucose change']
       ])}
       ${panel('1 Million Pound Challenge', `
         <div class="progress"><span style="width:${Math.min(100, pounds.total / 1000000 * 100)}%"></span></div>
@@ -187,12 +194,14 @@ function dashboard() {
       ${panel('Intake recommendation', `<div class="alert ${recommendation().tone}">${esc(recommendation().text)}</div>`)}
       <div class="grid two">
         ${panel('Weight trend', '<div class="chart-wrap"><canvas id="weightChart"></canvas></div>')}
-        ${panel('Glucose trend', '<div class="chart-wrap"><canvas id="glucoseChart"></canvas></div>')}
+        ${panel('Glucose + A1C trend', '<div class="chart-wrap"><canvas id="glucoseChart"></canvas></div>')}
       </div>
+      ${panel('Deficit / surplus trend', '<div class="chart-wrap compact-chart"><canvas id="balanceChart"></canvas></div>')}
     </div>
   `);
   drawWeightChart('weightChart');
   drawGlucoseChart('glucoseChart');
+  drawBalanceChart('balanceChart');
 }
 
 function glucose() {
@@ -1297,10 +1306,16 @@ function a1cTrend(rows) {
 function drawWeightChart(id) {
   const ctx = document.getElementById(id);
   if (!ctx) return;
-  const rows = [...(state.weight_log || [])].sort((a, b) => a.date.localeCompare(b.date)).slice(-30);
+  const trends = ledgerTrendSeries(state.daily_ledger || [], 30, bmr());
   charts.push(new Chart(ctx, {
     type: 'line',
-    data: { labels: rows.map((r) => r.date), datasets: [{ label: 'Weight', data: rows.map((r) => n(r.weight)), borderColor: '#22c59a', tension: .25 }] },
+    data: {
+      labels: trends.labels,
+      datasets: [
+        { label: 'Weight', data: trends.weight, borderColor: '#22c59a', tension: .25, spanGaps: true },
+        { label: '7-day average', data: trends.weightAverage, borderColor: '#f2b84b', borderDash: [6, 4], tension: .25, spanGaps: true }
+      ]
+    },
     options: chartOptions()
   }));
 }
@@ -1308,10 +1323,42 @@ function drawWeightChart(id) {
 function drawGlucoseChart(id) {
   const ctx = document.getElementById(id);
   if (!ctx) return;
-  const rows = [...(state.glucose_readings || [])].sort((a, b) => a.date.localeCompare(b.date)).slice(-30);
+  const trends = ledgerTrendSeries(state.daily_ledger || [], 30, bmr());
   charts.push(new Chart(ctx, {
     type: 'line',
-    data: { labels: rows.map((r) => r.date), datasets: [{ label: 'Glucose', data: rows.map((r) => n(r.value)), borderColor: '#69a8ff', tension: .25 }] },
+    data: {
+      labels: trends.labels,
+      datasets: [
+        { label: 'Daily avg glucose', data: trends.glucose, borderColor: '#69a8ff', tension: .25, spanGaps: true, yAxisID: 'y' },
+        { label: 'Estimated A1C', data: trends.a1c, borderColor: '#f2b84b', tension: .25, spanGaps: true, yAxisID: 'a1c' }
+      ]
+    },
+    options: chartOptions({
+      scales: {
+        a1c: {
+          position: 'right',
+          ticks: { color: getComputedStyle(document.body).getPropertyValue('--muted') },
+          grid: { drawOnChartArea: false }
+        }
+      }
+    })
+  }));
+}
+
+function drawBalanceChart(id) {
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  const trends = ledgerTrendSeries(state.daily_ledger || [], 30, bmr());
+  charts.push(new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: trends.labels,
+      datasets: [{
+        label: 'Deficit / surplus',
+        data: trends.balance,
+        backgroundColor: trends.balance.map((value) => value > 0 ? 'rgba(243,109,109,.75)' : 'rgba(62,214,141,.75)')
+      }]
+    },
     options: chartOptions()
   }));
 }
@@ -1326,14 +1373,15 @@ function drawA1cChart(id, rows) {
   }));
 }
 
-function chartOptions() {
+function chartOptions(overrides = {}) {
+  const baseScales = {
+    x: { ticks: { color: getComputedStyle(document.body).getPropertyValue('--muted') }, grid: { color: 'rgba(128,128,128,.16)' } },
+    y: { ticks: { color: getComputedStyle(document.body).getPropertyValue('--muted') }, grid: { color: 'rgba(128,128,128,.16)' } }
+  };
   return {
     responsive: true,
     maintainAspectRatio: false,
     plugins: { legend: { labels: { color: getComputedStyle(document.body).getPropertyValue('--text') } } },
-    scales: {
-      x: { ticks: { color: getComputedStyle(document.body).getPropertyValue('--muted') }, grid: { color: 'rgba(128,128,128,.16)' } },
-      y: { ticks: { color: getComputedStyle(document.body).getPropertyValue('--muted') }, grid: { color: 'rgba(128,128,128,.16)' } }
-    }
+    scales: { ...baseScales, ...(overrides.scales || {}) }
   };
 }

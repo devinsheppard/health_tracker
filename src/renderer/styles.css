@@ -379,6 +379,10 @@ th {
   height: 260px;
 }
 
+.compact-chart {
+  height: 220px;
+}
+
 .section-tabs {
   display: flex;
   gap: 8px;
