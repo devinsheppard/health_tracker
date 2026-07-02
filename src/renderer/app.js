@@ -76,6 +76,8 @@ let editingWorkoutSessionId = null;
 let editingExerciseId = null;
 let workoutSessionDraft = {};
 let draftWorkoutExercises = [];
+let selectedActivityId = null;
+let editingActivityId = null;
 
 boot();
 
@@ -161,7 +163,11 @@ function bmr() {
 
 function dailyBurn(date = today()) {
   const activityBurn = todayRows('activities', date).filter((row) => row.kind !== 'workout').reduce((sum, row) => sum + n(row.calories), 0);
-  const workoutBurn = todayRows('activities', date).filter((row) => row.kind === 'workout').reduce((sum, row) => sum + n(row.calories), 0);
+  const workoutActivityBurn = todayRows('activities', date).filter((row) => row.kind === 'workout').reduce((sum, row) => sum + n(row.calories), 0);
+  const unlinkedWorkoutBurn = (state.workout_sessions || [])
+    .filter((session) => session.date === date && !workoutActivityForSession(session.id))
+    .reduce((sum, session) => sum + n(workoutCalorieEstimate(session, exercisesForSession(session.id)).calories), 0);
+  const workoutBurn = workoutActivityBurn + unlinkedWorkoutBurn;
   return { activityBurn, workoutBurn, tdee: bmr() + activityBurn + workoutBurn };
 }
 
@@ -278,19 +284,36 @@ function workouts() {
 
 function activity() {
   const burn = dailyBurn();
+  const rows = activityDisplayRows();
+  if (selectedActivityId && !rows.some((row) => String(row.id) === String(selectedActivityId))) {
+    selectedActivityId = null;
+  }
+  const selectedActivity = rows.find((row) => String(row.id) === String(selectedActivityId));
+  const editingActivity = (state.activities || []).find((row) => row.id === editingActivityId);
+  if (selectedActivity) {
+    setContent(activityDetailScreen(selectedActivity));
+    bindActivityDetailActions();
+    if (editingActivity) bindActivityForm();
+    if (editingWorkoutSessionId) bindWorkoutSessionForm();
+    bindExerciseFormIfPresent();
+    bindWorkoutActions();
+    bindDeletes();
+    return;
+  }
   setContent(`
     <div class="grid">
       ${metrics([
         ['BMR', `${fmt(bmr())} cal`, 'Katch-McArdle'],
-        ['Activity burn', `${fmt(burn.activityBurn)} cal`, 'MET activity today'],
-        ['Workout burn', `${fmt(burn.workoutBurn)} cal`, 'Resistance training today'],
+        ['Activity burn', `${fmt(burn.activityBurn)} cal`, 'Non-workout MET activity today'],
+        ['Workout burn', `${fmt(burn.workoutBurn)} cal`, 'Estimated from saved workout sessions'],
         ['TDEE', `${fmt(burn.tdee)} cal`, 'BMR + burn']
       ])}
-      ${panel('Log activity', activityForm())}
-      ${panel('Activity history', table(['Date', 'Activity', 'MET', 'Minutes', 'Calories', 'Notes', ''], state.activities.map((r) => [r.date, r.name, fmt(r.met, 1), fmt(r.duration), fmt(r.calories), r.notes || '', del('activities', r.id)])))}
+      ${panel(editingActivity ? 'Edit activity' : 'Log activity', activityForm(editingActivity))}
+      ${panel('Activity history', activityHistoryTable(rows))}
     </div>
   `);
   bindActivityForm();
+  bindActivityActions();
   bindDeletes();
 }
 
@@ -513,13 +536,25 @@ function draftExerciseTable() {
   ]));
 }
 
-function activityForm() {
-  return `<form id="activityForm">${fields([
-    ['date', 'Date', 'date', today()],
-    ['name', 'Activity', 'select', 'Slow walking', Object.keys(activities)],
-    ['met', 'MET', 'number', activities['Slow walking']],
-    ['duration', 'Duration (minutes)', 'number']
-  ])}<label>Notes<textarea name="notes"></textarea></label><button class="primary-button">Save activity</button></form>`;
+function activityForm(row = null) {
+  const names = [...new Set([row?.name, ...Object.keys(activities)].filter(Boolean))];
+  return `<form id="activityForm">
+    ${row ? `<input type="hidden" name="id" value="${row.id}">` : ''}
+    <input type="hidden" name="kind" value="${row?.kind || 'activity'}">
+    <input type="hidden" name="source_session_id" value="${row?.source_session_id || ''}">
+    ${fields([
+      ['date', 'Date', 'date', row?.date || today()],
+      ['name', 'Activity', 'select', row?.name || 'Slow walking', names],
+      ['met', 'MET', 'number', row?.met || activities['Slow walking']],
+      ['duration', 'Duration (minutes)', 'number', row?.duration || ''],
+      ['calories', 'Calories', 'number', row?.calories || '']
+    ])}
+    <label>Notes<textarea name="notes">${row?.notes || ''}</textarea></label>
+    <div class="actions">
+      <button class="primary-button">${row ? 'Update activity' : 'Save activity'}</button>
+      ${row ? '<button class="ghost-button" data-cancel-activity-edit type="button">Cancel edit</button>' : ''}
+    </div>
+  </form>`;
 }
 
 function weightForm() {
@@ -733,14 +768,94 @@ function bindActivityForm() {
   const form = document.getElementById('activityForm');
   form.elements.name.addEventListener('change', () => {
     if (activities[form.elements.name.value]) form.elements.met.value = activities[form.elements.name.value];
+    form.elements.calories.value = fmt(metCalories(form.elements.met.value, form.elements.duration.value));
+  });
+  form.elements.met.addEventListener('input', () => {
+    form.elements.calories.value = fmt(metCalories(form.elements.met.value, form.elements.duration.value));
+  });
+  form.elements.duration.addEventListener('input', () => {
+    form.elements.calories.value = fmt(metCalories(form.elements.met.value, form.elements.duration.value));
   });
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     const body = formData(form);
-    body.calories = metCalories(body.met, body.duration);
-    body.kind = 'activity';
-    await save(() => api.add('activities', body));
+    const activityId = Number(body.id);
+    delete body.id;
+    body.calories = n(body.calories) || metCalories(body.met, body.duration);
+    body.kind = body.kind || 'activity';
+    await save(() => {
+      if (activityId) {
+        editingActivityId = null;
+        selectedActivityId = activityId;
+        return api.update('activities', activityId, body);
+      }
+      body.kind = 'activity';
+      return api.add('activities', body);
+    });
   });
+}
+
+function bindActivityActions() {
+  document.querySelectorAll('[data-select-activity]').forEach((button) => {
+    button.addEventListener('click', () => {
+      selectedActivityId = button.dataset.selectActivity;
+      editingActivityId = null;
+      renderPage('activity');
+    });
+  });
+  document.querySelectorAll('[data-edit-activity]').forEach((button) => {
+    button.addEventListener('click', () => {
+      selectedActivityId = Number(button.dataset.editActivity);
+      editingActivityId = Number(button.dataset.editActivity);
+      renderPage('activity');
+    });
+  });
+  document.querySelector('[data-cancel-activity-edit]')?.addEventListener('click', () => {
+    editingActivityId = null;
+    renderPage('activity');
+  });
+}
+
+function bindActivityDetailActions() {
+  document.querySelector('[data-back-activity]')?.addEventListener('click', () => {
+    selectedActivityId = null;
+    editingActivityId = null;
+    editingWorkoutSessionId = null;
+    editingExerciseId = null;
+    renderPage('activity');
+  });
+  document.querySelector('[data-edit-detail]')?.addEventListener('click', () => {
+    const row = activityDisplayRows().find((activity) => String(activity.id) === String(selectedActivityId));
+    if (!row) return;
+    if (row.kind === 'workout') {
+      editingWorkoutSessionId = n(row.source_session_id);
+      editingActivityId = null;
+    } else {
+      editingActivityId = n(row.id);
+      editingWorkoutSessionId = null;
+    }
+    renderPage('activity');
+  });
+  document.querySelector('[data-delete-detail]')?.addEventListener('click', async () => {
+    const row = activityDisplayRows().find((activity) => String(activity.id) === String(selectedActivityId));
+    if (!row) return;
+    if (!confirm(`Delete this ${row.kind === 'workout' ? 'workout' : 'activity'}?`)) return;
+    await save(async () => {
+      if (row.kind === 'workout' && row.source_session_id) {
+        await api.delete('workout_sessions', n(row.source_session_id));
+      } else if (!row.synthetic) {
+        await api.delete('activities', n(row.id));
+      }
+      selectedActivityId = null;
+      editingActivityId = null;
+      editingWorkoutSessionId = null;
+      editingExerciseId = null;
+    });
+  });
+}
+
+function bindExerciseFormIfPresent() {
+  if (document.getElementById('exerciseForm')) bindExerciseForm();
 }
 
 function bindWeightForm() {
@@ -991,6 +1106,93 @@ function exerciseTotalsTable() {
   return table(['Exercise', 'Lifetime pounds'], Object.entries(totals).sort((a, b) => b[1] - a[1]).map(([name, pounds]) => [name, fmt(pounds)]));
 }
 
+function activityHistoryTable(rows) {
+  return table(['Date', 'Type', 'Activity', 'MET', 'Minutes', 'Calories', 'Actions'], rows.map((row) => [
+    row.date,
+    row.kind === 'workout' ? 'Workout' : 'Activity',
+    row.name,
+    fmt(row.met, 1),
+    fmt(row.duration),
+    fmt(row.calories),
+    activityActions(row)
+  ]));
+}
+
+function activityDisplayRows() {
+  const realRows = state.activities || [];
+  const syntheticWorkoutRows = (state.workout_sessions || [])
+    .filter((session) => !workoutActivityForSession(session.id))
+    .map((session) => {
+      const estimate = workoutCalorieEstimate(session, exercisesForSession(session.id));
+      return {
+        id: `session-${session.id}`,
+        date: session.date,
+        kind: 'workout',
+        name: `Resistance training (${session.effort || 'moderate'})`,
+        met: workoutMet(session.effort),
+        duration: session.duration || estimate.duration,
+        calories: estimate.calories,
+        notes: session.notes,
+        source_session_id: session.id,
+        synthetic: true
+      };
+    });
+  return [...realRows, ...syntheticWorkoutRows].sort((a, b) => {
+    if (a.kind !== b.kind) return a.kind === 'workout' ? -1 : 1;
+    return String(b.date || '').localeCompare(String(a.date || '')) || String(b.id).localeCompare(String(a.id));
+  });
+}
+
+function activityActions(row) {
+  const select = `<button class="mini-button" data-select-activity="${row.id}" type="button">Select</button>`;
+  if (row.synthetic) {
+    return `<div class="actions">${select}</div>`;
+  }
+  return `<div class="actions">${select}<button class="mini-button" data-edit-activity="${row.id}" type="button">Edit</button>${del('activities', row.id)}</div>`;
+}
+
+function activityDetailScreen(row) {
+  const isWorkout = row.kind === 'workout';
+  const session = isWorkout ? workoutSessionForActivity(row) : null;
+  const linked = row.source_session_id ? `Linked workout session #${row.source_session_id}` : 'Manual activity entry';
+  const title = isWorkout ? row.name : row.name || 'Activity';
+  const editPanel = editingActivityId && !isWorkout
+    ? panel('Edit activity', activityForm((state.activities || []).find((activity) => activity.id === editingActivityId)))
+    : '';
+  const workoutEditPanel = editingWorkoutSessionId && session
+    ? panel('Edit workout session', workoutSessionForm(session))
+    : '';
+  const workoutExercises = session ? panel('Workout exercises', workoutExercisesTable(session.id, (state.workout_exercises || []).find((exercise) => exercise.id === editingExerciseId))) : '';
+  return `
+    <div class="grid">
+      <button class="back-button" data-back-activity type="button">&larr; Activity & Burn</button>
+      <div>
+        <p class="muted">${row.date || ''}</p>
+        <h2>${title}</h2>
+      </div>
+      ${metrics([
+        ['Calories', fmt(row.calories), row.kind === 'workout' ? 'Estimated workout burn' : 'MET activity burn'],
+        ['Duration', `${fmt(row.duration)} min`, `MET ${fmt(row.met, 1)}`],
+        ['Date', row.date || '--', row.name || '--'],
+        ['Source', row.kind === 'workout' ? 'Workout' : 'Activity', linked]
+      ])}
+      ${panel('Notes', `<div class="alert">${row.notes || 'No notes saved.'}</div>`)}
+      <div class="actions">
+        <button class="primary-button" data-edit-detail="${row.id}" type="button">EDIT</button>
+        <button class="danger-button" data-delete-detail="${row.id}" type="button">DELETE</button>
+      </div>
+      ${editPanel}
+      ${workoutEditPanel}
+      ${workoutExercises}
+    </div>
+  `;
+}
+
+function workoutSessionForActivity(row) {
+  if (!row?.source_session_id) return null;
+  return (state.workout_sessions || []).find((session) => n(session.id) === n(row.source_session_id));
+}
+
 function workoutExercisesTable(sessionId, editingExercise = null) {
   const rows = (state.workout_exercises || []).filter((exercise) => exercise.session_id === sessionId);
   const editForm = editingExercise ? `<div class="subpanel">${exerciseForm(sessionId, editingExercise)}</div>` : '';
@@ -1008,6 +1210,10 @@ function workoutExercisesTable(sessionId, editingExercise = null) {
 
 function linkedWorkoutActivity(sessionId) {
   return (state.activities || []).find((activity) => n(activity.source_session_id) === n(sessionId));
+}
+
+function workoutActivityForSession(sessionId) {
+  return linkedWorkoutActivity(sessionId) || findLegacyWorkoutActivity(sessionId);
 }
 
 function findLegacyWorkoutActivity(sessionId) {
