@@ -1,7 +1,5 @@
 node_modules/
 release/*
-!release/My Health Tracker Setup *.exe
-!release/My Health Tracker Setup *.exe.blockmap
 dist/
 *.log
 *.sqlite

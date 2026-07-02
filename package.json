@@ -1,6 +1,6 @@
 {
   "name": "my-health-tracker",
-  "version": "1.0.5",
+  "version": "1.1.0",
   "description": "Windows desktop personal health tracker",
   "main": "src/main.js",
   "author": "My Health Tracker",
@@ -8,16 +8,20 @@
   "scripts": {
     "start": "electron .",
     "postinstall": "electron-builder install-app-deps",
+    "test": "node --test",
+    "lint": "node scripts/lint.js",
+    "format": "node scripts/format-check.js",
+    "audit": "npm audit --audit-level=high",
     "build": "electron-builder --win nsis",
     "dist": "electron-builder",
     "make:icon": "node scripts/create-icon.js"
   },
   "dependencies": {
-    "better-sqlite3": "^11.10.0",
+    "better-sqlite3": "^12.11.1",
     "chart.js": "^4.4.9"
   },
   "devDependencies": {
-    "electron": "^35.2.0",
+    "electron": "^43.0.0",
     "electron-builder": "^26.0.12"
   },
   "build": {

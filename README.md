@@ -4,9 +4,7 @@ My Health Tracker is a Windows desktop app for local personal health tracking. I
 
 ## Download
 
-The Windows installer is included in this repository:
-
-`release/My Health Tracker Setup 1.0.5.exe`
+Windows installers are distributed as release artifacts. Starting with `v1.1.0`, installer binaries should be attached to GitHub Releases instead of committed directly to the repository.
 
 Run the installer to install the app. It creates Start Menu integration, supports uninstall through Windows Add/Remove Programs, and stores health data locally in the user's AppData folder.
 
@@ -34,6 +32,15 @@ Run the app locally:
 
 ```powershell
 npm start
+```
+
+Run checks:
+
+```powershell
+npm run lint
+npm run format
+npm run test
+npm run audit
 ```
 
 Build the Windows NSIS installer:
