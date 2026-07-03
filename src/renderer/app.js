@@ -3,6 +3,7 @@ const calc = window.HealthCalculations;
 const html = window.HealthHtml;
 const catalog = window.HealthCatalog;
 const trendTools = window.HealthTrends;
+const ui = window.HealthUi;
 const {
   n,
   leanBodyMass,
@@ -25,15 +26,7 @@ const {
 } = html;
 const { pages, dietProfiles, activities, exerciseGroups } = catalog;
 const { ledgerTrendSeries, trendDelta } = trendTools;
-const localDateKey = (date = new Date()) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-const today = () => localDateKey();
-const nowTime = () => new Date().toTimeString().slice(0, 5);
-const fmt = (value, digits = 0) => Number.isFinite(Number(value)) ? Number(value).toFixed(digits) : '--';
+const { localDateKey, today, nowTime, fmt, age } = ui;
 
 let state = {};
 let currentPage = 'dashboard';
@@ -1275,16 +1268,6 @@ function weightStats() {
     bodyFatChange: n(last.body_fat) - n(first.body_fat),
     lbmChange: n(last.lean_body_mass) - n(first.lean_body_mass)
   };
-}
-
-function age(dob) {
-  if (!dob) return '';
-  const birth = new Date(dob);
-  const now = new Date();
-  let years = now.getFullYear() - birth.getFullYear();
-  const m = now.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) years--;
-  return years;
 }
 
 function outOfRange(row) {
