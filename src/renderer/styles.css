@@ -400,6 +400,30 @@ th {
   margin-bottom: 12px;
 }
 
+.picker-results {
+  display: grid;
+  gap: 8px;
+  max-height: 300px;
+  overflow: auto;
+}
+
+.picker-option {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel-2);
+  color: var(--text);
+  text-align: left;
+}
+
+.picker-option span {
+  color: var(--muted);
+  font-size: .9rem;
+}
+
 .reading-low,
 .reading-red {
   color: var(--bad);

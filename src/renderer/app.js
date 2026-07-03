@@ -2,6 +2,7 @@ const api = window.healthApi;
 const calc = window.HealthCalculations;
 const html = window.HealthHtml;
 const catalog = window.HealthCatalog;
+const labCatalogTools = window.HealthLabCatalog;
 const trendTools = window.HealthTrends;
 const ui = window.HealthUi;
 const {
@@ -25,6 +26,7 @@ const {
   cellHtml
 } = html;
 const { pages, dietProfiles, activities, exerciseGroups } = catalog;
+const { categories: labCategories, searchBuiltInTests, findBuiltInTest, normalize: normalizeLabSearch } = labCatalogTools;
 const { ledgerTrendSeries, trendDelta } = trendTools;
 const { localDateKey, today, nowTime, fmt, age } = ui;
 
@@ -385,7 +387,7 @@ function labs() {
       ${panel('Lab history', table(['Date', 'Test', 'Category', 'Value', 'Range', 'Flag', 'Notes', ''], state.lab_results.map((r) => [r.date, r.test_name, r.test_category || '', labValue(r), r.reference_range, outOfRange(r) ? raw('<span class="reading-amber">Review</span>') : 'In range', r.notes || '', del('lab_results', r.id)])))}
     </div>
   `);
-  bindForm('labForm', 'lab_results');
+  bindLabForm();
   bindDeletes();
   drawA1cChart('a1cChart', a1c);
 }
@@ -618,7 +620,20 @@ function medsForm() {
 }
 
 function labForm() {
-  return `<form id="labForm">${fields([
+  const categoryOptions = ['', ...labCategories];
+  const initialResults = labCatalogSearch('', '');
+  return `<form id="labForm">
+    <div class="subpanel">
+      ${fields([
+        ['lab_search', 'Search catalog', 'text'],
+        ['lab_category_filter', 'Category filter', 'select', '', categoryOptions]
+      ])}
+      <div id="labSearchResults" class="picker-results">${labSearchResults(initialResults)}</div>
+      <div id="labSelectedDetails" class="alert">${labSelectedDetails()}</div>
+    </div>
+    <input type="hidden" name="catalog_source" value="">
+    <input type="hidden" name="catalog_id" value="">
+    ${fields([
     ['date', 'Date', 'date', today()],
     ['test_name', 'Test name', 'text'],
     ['test_category', 'Category', 'text'],
@@ -660,6 +675,53 @@ function bindForm(id, tableName) {
   document.getElementById(id).addEventListener('submit', async (event) => {
     event.preventDefault();
     await save(() => api.add(tableName, formData(event.target)));
+  });
+}
+
+function bindLabForm() {
+  const form = document.getElementById('labForm');
+  const searchInput = form.elements.lab_search;
+  const categoryFilter = form.elements.lab_category_filter;
+  const resultsTarget = document.getElementById('labSearchResults');
+  const detailsTarget = document.getElementById('labSelectedDetails');
+  const renderResults = () => {
+    resultsTarget.innerHTML = labSearchResults(labCatalogSearch(searchInput.value, categoryFilter.value));
+    bindLabResultButtons(form, detailsTarget);
+  };
+  searchInput.addEventListener('input', renderResults);
+  categoryFilter.addEventListener('change', renderResults);
+  bindLabResultButtons(form, detailsTarget);
+  form.addEventListener('input', () => {
+    detailsTarget.innerHTML = labSelectedDetails(selectedLabTestFromForm(form), form);
+  });
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const body = formData(form);
+    delete body.lab_search;
+    delete body.lab_category_filter;
+    await save(() => api.add('lab_results', body));
+  });
+}
+
+function bindLabResultButtons(form, detailsTarget) {
+  document.querySelectorAll('[data-select-lab]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const test = labCatalogTest(button.dataset.labSource, button.dataset.selectLab);
+      if (!test) return;
+      form.elements.catalog_source.value = test.source;
+      form.elements.catalog_id.value = test.id;
+      form.elements.test_name.value = test.displayName;
+      form.elements.test_category.value = test.category || '';
+      form.elements.unit.value = test.defaultUnit || '';
+      form.elements.reference_range.value = test.referenceRange || '';
+      detailsTarget.innerHTML = labSelectedDetails(test, form);
+    });
+  });
+  document.querySelector('[data-custom-lab]')?.addEventListener('click', () => {
+    form.elements.catalog_source.value = 'custom-manual';
+    form.elements.catalog_id.value = '';
+    detailsTarget.innerHTML = labSelectedDetails(null, form);
+    form.elements.test_name.focus();
   });
 }
 
@@ -1286,6 +1348,78 @@ function outOfRange(row) {
 
 function labValue(row) {
   return `${fmt(row.value, 2)}${row.unit ? ` ${row.unit}` : ''}`;
+}
+
+function labCatalogSearch(query = '', category = '') {
+  const builtIn = searchBuiltInTests(query, { category, limit: 10 });
+  const normalizedQuery = normalizeLabSearch(query);
+  const custom = (state.lab_test_catalog_custom || [])
+    .map(customLabTest)
+    .filter((test) => !category || test.category === category)
+    .filter((test) => !normalizedQuery || labSearchText(test).includes(normalizedQuery))
+    .slice(0, 10);
+  return [...custom, ...builtIn].slice(0, 12);
+}
+
+function labSearchResults(results) {
+  const rows = [
+    ...results.map((test) => `
+      <button class="picker-option" data-select-lab="${attr(test.id)}" data-lab-source="${attr(test.source)}" type="button">
+        <strong>${esc(test.displayName)}</strong>
+        <span>${esc([test.abbreviation, test.category, test.defaultUnit].filter(Boolean).join(' | '))}</span>
+      </button>
+    `),
+    '<button class="picker-option" data-custom-lab type="button"><strong>Custom Test</strong><span>Enter a lab manually</span></button>'
+  ];
+  return rows.join('');
+}
+
+function labSelectedDetails(test = null, form = null) {
+  const selected = test || selectedLabTestFromForm(form);
+  if (!selected) {
+    return 'Custom test mode. Enter the test name, category, unit, and reference range manually.';
+  }
+  const range = form?.elements.reference_range.value || selected.referenceRange || 'No default range';
+  const unit = form?.elements.unit.value || selected.defaultUnit || 'No default unit';
+  return `
+    <strong>${esc(selected.displayName)}</strong>
+    <div class="muted">${esc(selected.category || 'Uncategorized')} | ${esc(unit)} | ${esc(range)}</div>
+    <small>${esc(selected.notes || 'Catalog defaults are editable before saving.')}</small>
+  `;
+}
+
+function selectedLabTestFromForm(form) {
+  if (!form?.elements.catalog_source.value) return null;
+  return labCatalogTest(form.elements.catalog_source.value, form.elements.catalog_id.value);
+}
+
+function labCatalogTest(source, id) {
+  if (source === 'built-in') return findBuiltInTest(id);
+  if (source === 'custom') return (state.lab_test_catalog_custom || []).map(customLabTest).find((test) => String(test.id) === String(id)) || null;
+  return null;
+}
+
+function customLabTest(row) {
+  return {
+    id: row.id,
+    source: 'custom',
+    displayName: row.display_name,
+    abbreviation: row.abbreviation,
+    aliases: String(row.aliases || '').split(',').map((alias) => alias.trim()).filter(Boolean),
+    category: row.category || 'Other',
+    defaultUnit: row.default_unit || '',
+    referenceRange: row.reference_range || '',
+    notes: row.notes || ''
+  };
+}
+
+function labSearchText(test) {
+  return normalizeLabSearch([
+    test.displayName,
+    test.abbreviation,
+    test.category,
+    ...(test.aliases || [])
+  ].join(' '));
 }
 
 function a1cTrend(rows) {
