@@ -200,6 +200,28 @@ test('counts non-walking activity with steps while preventing walking double cou
   assert.equal(Number(row.activity_calories.toFixed(1)), 573.6);
 });
 
+test('counts walking activity normally when no step calories exist', () => {
+  const userDataPath = tempUserData();
+  db.init(userDataPath);
+
+  db.addRow('activities', {
+    date: '2026-07-01',
+    name: 'Moderate walking',
+    met: 3.5,
+    duration: 30,
+    calories: 150,
+    notes: '',
+    kind: 'activity',
+    source_session_id: null
+  });
+
+  const row = db.getAllData().daily_ledger[0];
+  assert.equal(row.step_count, 0);
+  assert.equal(row.step_calories, 0);
+  assert.equal(row.activity_calories, 150);
+  assert.equal(row.activity_minutes, 30);
+});
+
 test('updates the daily ledger after source rows are edited or deleted', () => {
   const userDataPath = tempUserData();
   db.init(userDataPath);

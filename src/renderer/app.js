@@ -323,7 +323,7 @@ function activity() {
         ['Deficit / surplus', `${balance >= 0 ? '+' : ''}${fmt(balance)} cal`, `${fmt(intake.calories)} calories in today`]
       ])}
       <div class="grid two">
-        ${panel(editingStepLogId ? 'Edit daily steps' : 'Daily steps', stepForm((state.step_log || []).find((row) => row.id === editingStepLogId) || todaysSteps))}
+        ${panel(editingStepLogId ? 'Edit daily steps' : 'Daily steps', `${stepBurnNote()}${stepForm((state.step_log || []).find((row) => row.id === editingStepLogId) || todaysSteps)}`)}
         ${panel(editingActivity ? 'Edit activity' : 'Log activity', activityForm(editingActivity))}
       </div>
       ${panel('Step history', stepHistoryTable())}
@@ -629,6 +629,10 @@ function stepForm(row = null) {
       ${editingStepLogId ? '<button class="ghost-button" data-cancel-step-edit type="button">Cancel edit</button>' : ''}
     </div>
   </form>`;
+}
+
+function stepBurnNote() {
+  return '<div class="alert">When steps are logged for a day, walking activities stay in history but their calories are not added again. Other activities still count.</div>';
 }
 
 function weightForm() {

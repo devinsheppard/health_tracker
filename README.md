@@ -37,6 +37,7 @@ Recommended habit: make a database backup before installing a new version, befor
 - Blood glucose logging with context-specific thresholds and estimated A1C
 - Workout sessions, exercise rows, workout templates, bodyweight handling, and a 1,000,000 lb lifetime lifting challenge
 - Activity tracking with linked workout burn
+- Step tracking with calorie estimates and walking double-count prevention
 - Weight, body fat, lean body mass, sleep, medication, and lab tracking
 - Search-first lab test catalog with common built-in tests, aliases, editable units/reference ranges, and personal custom tests
 - Chart.js trends for dashboard, glucose, weight, and labs
@@ -58,6 +59,7 @@ Add screenshots to GitHub Releases or repository documentation when preparing a 
 - This app is for personal tracking and is not medical advice.
 - Calorie burn, TDEE, A1C, and workout estimates are approximations.
 - Built-in lab reference ranges are editable defaults only. Use the range from your actual lab report when it differs.
+- When steps are logged for a day, manually logged walking activities remain visible but are not added again to TDEE.
 - Weather, temperature, humidity, wearable data, and cloud sync are not integrated.
 - Data is local to the installed Windows user unless manually backed up, exported, or restored.
 - Installer artifacts in `release/` are local build outputs and should be published through GitHub Releases, not committed.
@@ -92,6 +94,10 @@ npm run build
 ```
 
 ## Changelog
+
+### v1.1.24
+
+- Clarified step and walking double-count behavior in Activity & Burn and added regression coverage for step-inclusive deficit/surplus totals.
 
 ### v1.1.23
 

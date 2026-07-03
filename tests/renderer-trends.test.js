@@ -21,6 +21,14 @@ test('builds ledger trend series from the most recent sorted rows', () => {
   assert.deepEqual(series.volume, [2000, 3000]);
 });
 
+test('uses step-inclusive activity calories in deficit and surplus trends', () => {
+  const series = trends.ledgerTrendSeries([
+    { date: '2026-07-01', food_calories: 2000, activity_calories: 650, step_calories: 350, workout_calories: 250 }
+  ], 1, 1500);
+
+  assert.deepEqual(series.balance, [-400]);
+});
+
 test('calculates trend deltas from finite values only', () => {
   assert.equal(trends.trendDelta([null, 240, 238]), -2);
   assert.equal(trends.trendDelta([null, undefined]), null);
