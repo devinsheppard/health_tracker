@@ -35,11 +35,13 @@ test('initializes a new database at the current schema version', () => {
       { version: 3, name: 'workout_templates' },
       { version: 4, name: 'profile_ui_scale' },
       { version: 5, name: 'custom_lab_test_catalog' },
-      { version: 6, name: 'lab_result_catalog_metadata' }
+      { version: 6, name: 'lab_result_catalog_metadata' },
+      { version: 7, name: 'daily_step_log' }
     ]);
     assert.equal(raw.prepare('SELECT COUNT(*) AS count FROM profile').get().count, 1);
     assert.equal(raw.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name = 'workout_templates'").get().count, 1);
     assert.equal(raw.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name = 'lab_test_catalog_custom'").get().count, 1);
+    assert.equal(raw.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name = 'step_log'").get().count, 1);
     const labColumns = raw.prepare('PRAGMA table_info(lab_results)').all().map((column) => column.name);
     assert.equal(labColumns.includes('test_category'), true);
     assert.equal(labColumns.includes('unit'), true);
@@ -95,4 +97,5 @@ test('migrates an existing unversioned database without losing rows', () => {
   assert.equal(data.daily_ledger[0].food_calories, 300);
   assert.equal(data.profile.ui_scale, 'normal');
   assert.deepEqual(data.lab_test_catalog_custom, []);
+  assert.deepEqual(data.step_log, []);
 });

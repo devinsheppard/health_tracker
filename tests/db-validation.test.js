@@ -99,10 +99,16 @@ test('accepts valid workout and activity rows', () => {
     kind: 'activity',
     source_session_id: null
   });
+  db.addRow('step_log', {
+    date: '2026-07-01',
+    steps: 8500,
+    notes: 'Manual step entry'
+  });
 
   const row = db.getAllData().daily_ledger[0];
   assert.equal(row.workout_volume, 3000);
   assert.equal(row.activity_calories, 150);
+  assert.equal(db.getAllData().step_log[0].steps, 8500);
 });
 
 test('accepts valid workout templates', () => {
@@ -210,6 +216,16 @@ test('rejects invalid health rows without saving them', () => {
     morning_glucose: 100,
     notes: ''
   }), /Validation failed: hours/);
+  assert.throws(() => db.addRow('step_log', {
+    date: '2026-07-01',
+    steps: -1,
+    notes: ''
+  }), /Validation failed: steps/);
+  assert.throws(() => db.addRow('step_log', {
+    date: '2026-02-31',
+    steps: 1000,
+    notes: ''
+  }), /Validation failed: date/);
   assert.throws(() => db.addRow('lab_test_catalog_custom', {
     display_name: '',
     abbreviation: 'BAD',
@@ -224,6 +240,7 @@ test('rejects invalid health rows without saving them', () => {
   assert.equal(data.glucose_readings.length, 0);
   assert.equal(data.food_log.length, 0);
   assert.equal(data.sleep_log.length, 0);
+  assert.equal(data.step_log.length, 0);
   assert.equal(data.lab_test_catalog_custom.length, 0);
 });
 

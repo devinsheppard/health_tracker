@@ -93,6 +93,10 @@ npm run build
 
 ## Changelog
 
+### v1.1.21
+
+- Added database storage, validation, migration, and JSON import/export support for daily step history.
+
 ### v1.1.20
 
 - Added editing for existing lab results while preserving record IDs.

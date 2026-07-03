@@ -5,7 +5,7 @@ const Database = require('better-sqlite3');
 let db;
 let dbPath;
 let dataDir;
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 
 const allowedTables = new Set([
   'glucose_readings',
@@ -14,6 +14,7 @@ const allowedTables = new Set([
   'workout_exercises',
   'workout_templates',
   'activities',
+  'step_log',
   'weight_log',
   'sleep_log',
   'medications',
@@ -28,6 +29,7 @@ const tableColumns = {
   workout_exercises: ['session_id', 'muscle_group', 'exercise', 'sets', 'reps', 'weight', 'seconds', 'mode', 'pounds'],
   workout_templates: ['name', 'duration', 'effort', 'notes', 'exercises'],
   activities: ['date', 'name', 'met', 'duration', 'calories', 'notes', 'kind', 'source_session_id'],
+  step_log: ['date', 'steps', 'notes'],
   weight_log: ['date', 'weight', 'body_fat', 'lean_body_mass', 'notes'],
   sleep_log: ['date', 'hours', 'quality', 'morning_glucose', 'notes'],
   medications: ['name', 'dose', 'frequency', 'timing', 'purpose_notes'],
@@ -40,6 +42,7 @@ const sourceTablesWithDates = [
   'food_log',
   'workout_sessions',
   'activities',
+  'step_log',
   'weight_log',
   'sleep_log',
   'lab_results'
@@ -47,7 +50,8 @@ const sourceTablesWithDates = [
 
 const optionalImportTables = new Set([
   'workout_templates',
-  'lab_test_catalog_custom'
+  'lab_test_catalog_custom',
+  'step_log'
 ]);
 
 const validators = {
@@ -95,6 +99,11 @@ const validators = {
     numberField(row, 'calories', { min: 0, max: 10000 });
     enumField(row, 'kind', ['activity', 'workout'], partial);
     integerField(row, 'source_session_id', { min: 1 });
+  },
+  step_log: (row, partial = false) => {
+    dateField(row, 'date', partial);
+    integerField(row, 'steps', { min: 0, max: 200000, required: !partial });
+    textField(row, 'notes', { max: 2000 });
   },
   weight_log: (row, partial = false) => {
     dateField(row, 'date', partial);
@@ -209,6 +218,11 @@ const migrations = [
     version: 6,
     name: 'lab_result_catalog_metadata',
     up: createLabResultCatalogMetadata
+  },
+  {
+    version: 7,
+    name: 'daily_step_log',
+    up: createStepLogSchema
   }
 ];
 
@@ -293,6 +307,14 @@ function createBaselineSchema() {
       notes TEXT,
       kind TEXT DEFAULT 'activity',
       source_session_id REAL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS step_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL,
+      steps INTEGER,
+      notes TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -437,6 +459,19 @@ function createLabResultCatalogMetadata() {
   ensureColumn('lab_results', 'catalog_id', 'TEXT');
 }
 
+function createStepLogSchema() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS step_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL,
+      steps INTEGER,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+  rebuildDailyLedger();
+}
+
 function getSchemaVersion() {
   return Number(db.pragma('user_version', { simple: true })) || 0;
 }
@@ -459,6 +494,7 @@ function getAllData() {
     workout_exercises: all('SELECT * FROM workout_exercises ORDER BY id DESC'),
     workout_templates: all('SELECT * FROM workout_templates ORDER BY name COLLATE NOCASE, id DESC'),
     activities: all('SELECT * FROM activities ORDER BY date DESC, id DESC'),
+    step_log: all('SELECT * FROM step_log ORDER BY date DESC, id DESC'),
     weight_log: all('SELECT * FROM weight_log ORDER BY date DESC, id DESC'),
     sleep_log: all('SELECT * FROM sleep_log ORDER BY date DESC, id DESC'),
     medications: all('SELECT * FROM medications ORDER BY name COLLATE NOCASE'),
@@ -713,6 +749,7 @@ function ledgerNotes(date) {
   collectNotes(notes, 'Glucose', "SELECT notes FROM glucose_readings WHERE date = ? AND notes IS NOT NULL AND notes != '' ORDER BY time, id", date);
   collectNotes(notes, 'Workout', "SELECT notes FROM workout_sessions WHERE date = ? AND notes IS NOT NULL AND notes != '' ORDER BY id", date);
   collectNotes(notes, 'Activity', "SELECT notes FROM activities WHERE date = ? AND notes IS NOT NULL AND notes != '' ORDER BY id", date);
+  collectNotes(notes, 'Steps', "SELECT notes FROM step_log WHERE date = ? AND notes IS NOT NULL AND notes != '' ORDER BY id", date);
   collectNotes(notes, 'Weight', "SELECT notes FROM weight_log WHERE date = ? AND notes IS NOT NULL AND notes != '' ORDER BY id", date);
   collectNotes(notes, 'Sleep', "SELECT notes FROM sleep_log WHERE date = ? AND notes IS NOT NULL AND notes != '' ORDER BY id", date);
   collectNotes(notes, 'Lab', "SELECT notes FROM lab_results WHERE date = ? AND notes IS NOT NULL AND notes != '' ORDER BY id", date);

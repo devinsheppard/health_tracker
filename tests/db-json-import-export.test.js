@@ -53,6 +53,11 @@ test('exports and imports full JSON while preserving ids and rebuilding ledger',
     fat: 12,
     calories: 300
   });
+  const steps = db.addRow('step_log', {
+    date: '2026-07-01',
+    steps: 7200,
+    notes: 'Lunch walk and errands'
+  });
   const lab = db.addRow('lab_results', {
     date: '2026-07-01',
     test_name: 'Hemoglobin A1c',
@@ -89,6 +94,8 @@ test('exports and imports full JSON while preserving ids and rebuilding ledger',
   assert.equal(exported.data.tables.workout_sessions[0].id, session.id);
   assert.equal(exported.data.tables.workout_exercises[0].id, exercise.id);
   assert.equal(exported.data.tables.workout_templates[0].id, template.id);
+  assert.equal(exported.data.tables.step_log[0].id, steps.id);
+  assert.equal(exported.data.tables.step_log[0].steps, 7200);
   assert.equal(exported.data.tables.lab_results[0].id, lab.id);
   assert.equal(exported.data.tables.lab_results[0].unit, '%');
   assert.equal(exported.data.tables.lab_test_catalog_custom[0].id, customLab.id);
@@ -104,6 +111,7 @@ test('exports and imports full JSON while preserving ids and rebuilding ledger',
   assert.equal(data.workout_sessions[0].id, session.id);
   assert.equal(data.workout_exercises[0].session_id, session.id);
   assert.equal(data.workout_templates[0].name, 'Saved push day');
+  assert.equal(data.step_log[0].steps, 7200);
   assert.equal(data.lab_results[0].catalog_id, 'diabetes-hemoglobin-a1c');
   assert.equal(data.lab_results[0].unit, '%');
   assert.equal(data.lab_test_catalog_custom[0].display_name, 'Personal Lab Marker');
@@ -136,6 +144,7 @@ test('rejects invalid full JSON imports without replacing current rows', () => {
         workout_exercises: [],
         workout_templates: [],
         activities: [],
+        step_log: [],
         weight_log: [],
         sleep_log: [],
         medications: [],
@@ -162,6 +171,7 @@ test('imports older full JSON exports without workout templates', () => {
   const exported = db.exportFullJson();
   delete exported.data.tables.workout_templates;
   delete exported.data.tables.lab_test_catalog_custom;
+  delete exported.data.tables.step_log;
   delete exported.data.tables.lab_results[0].test_category;
   delete exported.data.tables.lab_results[0].unit;
   delete exported.data.tables.lab_results[0].catalog_source;
@@ -171,6 +181,7 @@ test('imports older full JSON exports without workout templates', () => {
 
   assert.equal(imported.data.workout_templates.length, 0);
   assert.equal(imported.data.lab_test_catalog_custom.length, 0);
+  assert.equal(imported.data.step_log.length, 0);
   assert.equal(imported.data.lab_results[0].test_name, 'Legacy A1C');
   assert.equal(imported.data.lab_results[0].unit, null);
   assert.equal(imported.data.lab_results[0].catalog_source, null);
