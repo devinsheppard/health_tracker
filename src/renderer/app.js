@@ -640,7 +640,9 @@ function labForm() {
     ['unit', 'Unit', 'text'],
     ['value', 'Value', 'number'],
     ['reference_range', 'Reference range', 'text']
-  ])}<label>Notes<textarea name="notes"></textarea></label><button class="primary-button">Save lab</button></form>`;
+  ])}<label>Notes<textarea name="notes"></textarea></label>
+    <label class="inline-check"><input type="checkbox" name="save_custom_test" value="yes"> Save this test to my personal catalog</label>
+    <button class="primary-button">Save lab</button></form>`;
 }
 
 function profileForm(p) {
@@ -697,9 +699,18 @@ function bindLabForm() {
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     const body = formData(form);
+    const shouldSaveCustomTest = body.save_custom_test === 'yes';
     delete body.lab_search;
     delete body.lab_category_filter;
-    await save(() => api.add('lab_results', body));
+    delete body.save_custom_test;
+    await save(async () => {
+      if (shouldSaveCustomTest) {
+        const custom = await api.add('lab_test_catalog_custom', customLabPayloadFromLab(body));
+        body.catalog_source = 'custom';
+        body.catalog_id = String(custom.id);
+      }
+      return api.add('lab_results', body);
+    });
   });
 }
 
@@ -1409,6 +1420,18 @@ function customLabTest(row) {
     category: row.category || 'Other',
     defaultUnit: row.default_unit || '',
     referenceRange: row.reference_range || '',
+    notes: row.notes || ''
+  };
+}
+
+function customLabPayloadFromLab(row) {
+  return {
+    display_name: row.test_name,
+    abbreviation: '',
+    aliases: '',
+    category: row.test_category || 'Other',
+    default_unit: row.unit || '',
+    reference_range: row.reference_range || '',
     notes: row.notes || ''
   };
 }

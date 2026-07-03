@@ -142,6 +142,38 @@ test('accepts valid custom lab catalog tests', () => {
   assert.equal(custom.category, 'Other');
 });
 
+test('saves lab results from custom catalog tests', () => {
+  init();
+
+  const custom = db.addRow('lab_test_catalog_custom', {
+    display_name: 'Experimental Marker',
+    abbreviation: '',
+    aliases: '',
+    category: 'Other',
+    default_unit: 'units',
+    reference_range: '1-5',
+    notes: 'Personal catalog default.'
+  });
+
+  db.addRow('lab_results', {
+    date: '2026-07-01',
+    test_name: 'Experimental Marker',
+    test_category: 'Other',
+    unit: 'units',
+    value: 3,
+    reference_range: '1-5',
+    notes: 'Logged from custom test.',
+    catalog_source: 'custom',
+    catalog_id: String(custom.id)
+  });
+
+  const data = db.getAllData();
+  assert.equal(data.lab_test_catalog_custom[0].display_name, 'Experimental Marker');
+  assert.equal(data.lab_results[0].catalog_source, 'custom');
+  assert.equal(data.lab_results[0].catalog_id, String(custom.id));
+  assert.equal(data.lab_results[0].test_name, 'Experimental Marker');
+});
+
 
 test('rejects invalid profile values', () => {
   init();
