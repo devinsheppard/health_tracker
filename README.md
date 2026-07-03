@@ -93,6 +93,10 @@ npm run build
 
 ## Changelog
 
+### v1.1.20
+
+- Added editing for existing lab results while preserving record IDs.
+
 ### v1.1.19
 
 - Completed the lab selection feature test/documentation pass.

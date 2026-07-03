@@ -291,3 +291,38 @@ test('validates partial edits without requiring unchanged fields', () => {
   assert.throws(() => db.updateRow('food_log', food.id, { calories: -1 }), /Validation failed: calories/);
   assert.equal(db.getAllData().food_log[0].calories, 450);
 });
+
+test('updates lab results without creating duplicate records', () => {
+  init();
+
+  const lab = db.addRow('lab_results', {
+    date: '2026-07-01',
+    test_name: 'Hemoglobin A1c',
+    test_category: 'Diabetes',
+    unit: '%',
+    value: 5.8,
+    reference_range: '<5.7',
+    notes: 'Original result.',
+    catalog_source: 'built-in',
+    catalog_id: 'diabetes-hemoglobin-a1c'
+  });
+
+  db.updateRow('lab_results', lab.id, {
+    date: '2026-07-02',
+    test_name: 'Hemoglobin A1c',
+    test_category: 'Diabetes',
+    unit: '%',
+    value: 5.5,
+    reference_range: '<5.7',
+    notes: 'Edited result.',
+    catalog_source: 'built-in',
+    catalog_id: 'diabetes-hemoglobin-a1c'
+  });
+
+  const rows = db.getAllData().lab_results;
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].id, lab.id);
+  assert.equal(rows[0].date, '2026-07-02');
+  assert.equal(rows[0].value, 5.5);
+  assert.equal(rows[0].notes, 'Edited result.');
+});

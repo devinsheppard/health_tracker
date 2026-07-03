@@ -40,6 +40,7 @@ let workoutSessionDraft = {};
 let draftWorkoutExercises = [];
 let selectedActivityId = null;
 let editingActivityId = null;
+let editingLabResultId = null;
 
 boot();
 
@@ -371,6 +372,7 @@ function meds() {
 }
 
 function labs() {
+  const editingLabResult = (state.lab_results || []).find((row) => row.id === editingLabResultId);
   const a1c = state.lab_results.filter((r) => /a1c|hba1c/i.test(r.test_name || '')).sort((a, b) => a.date.localeCompare(b.date));
   setContent(`
     <div class="grid">
@@ -381,10 +383,10 @@ function labs() {
         ['Out of range', state.lab_results.filter((r) => outOfRange(r)).length, 'Based on reference text']
       ])}
       <div class="grid two">
-        ${panel('Log lab result', labForm())}
+        ${panel(editingLabResult ? 'Edit lab result' : 'Log lab result', labForm(editingLabResult))}
         ${panel('A1c progression', '<div class="chart-wrap"><canvas id="a1cChart"></canvas></div>')}
       </div>
-      ${panel('Lab history', table(['Date', 'Test', 'Category', 'Value', 'Range', 'Flag', 'Notes', ''], state.lab_results.map((r) => [r.date, r.test_name, r.test_category || '', labValue(r), r.reference_range, outOfRange(r) ? raw('<span class="reading-amber">Review</span>') : 'In range', r.notes || '', del('lab_results', r.id)])))}
+      ${panel('Lab history', table(['Date', 'Test', 'Category', 'Value', 'Range', 'Flag', 'Notes', 'Actions'], state.lab_results.map((r) => [r.date, r.test_name, r.test_category || '', labValue(r), r.reference_range, outOfRange(r) ? raw('<span class="reading-amber">Review</span>') : 'In range', r.notes || '', labActions(r)])))}
     </div>
   `);
   bindLabForm();
@@ -619,9 +621,10 @@ function medsForm() {
   ])}<label>Purpose / notes<textarea name="purpose_notes"></textarea></label><button class="primary-button">Save medication</button></form>`;
 }
 
-function labForm() {
+function labForm(row = null) {
   const categoryOptions = ['', ...labCategories];
   const initialResults = labCatalogSearch('', '');
+  const isEditing = Boolean(row);
   return `<form id="labForm">
     <div class="subpanel">
       ${fields([
@@ -631,18 +634,22 @@ function labForm() {
       <div id="labSearchResults" class="picker-results">${labSearchResults(initialResults)}</div>
       <div id="labSelectedDetails" class="alert">${labSelectedDetails()}</div>
     </div>
-    <input type="hidden" name="catalog_source" value="">
-    <input type="hidden" name="catalog_id" value="">
+    <input type="hidden" name="id" value="${attr(row?.id || '')}">
+    <input type="hidden" name="catalog_source" value="${attr(row?.catalog_source || '')}">
+    <input type="hidden" name="catalog_id" value="${attr(row?.catalog_id || '')}">
     ${fields([
-    ['date', 'Date', 'date', today()],
-    ['test_name', 'Test name', 'text'],
-    ['test_category', 'Category', 'text'],
-    ['unit', 'Unit', 'text'],
-    ['value', 'Value', 'number'],
-    ['reference_range', 'Reference range', 'text']
-  ])}<label>Notes<textarea name="notes"></textarea></label>
-    <label class="inline-check"><input type="checkbox" name="save_custom_test" value="yes"> Save this test to my personal catalog</label>
-    <button class="primary-button">Save lab</button></form>`;
+    ['date', 'Date', 'date', row?.date || today()],
+    ['test_name', 'Test name', 'text', row?.test_name || ''],
+    ['test_category', 'Category', 'text', row?.test_category || ''],
+    ['unit', 'Unit', 'text', row?.unit || ''],
+    ['value', 'Value', 'number', row?.value ?? ''],
+    ['reference_range', 'Reference range', 'text', row?.reference_range || '']
+  ])}<label>Notes<textarea name="notes">${esc(row?.notes || '')}</textarea></label>
+    ${isEditing ? '' : '<label class="inline-check"><input type="checkbox" name="save_custom_test" value="yes"> Save this test to my personal catalog</label>'}
+    <div class="actions">
+      <button class="primary-button">${isEditing ? 'Save changes' : 'Save lab'}</button>
+      ${isEditing ? '<button class="ghost-button" data-cancel-lab-edit type="button">Cancel</button>' : ''}
+    </div></form>`;
 }
 
 function profileForm(p) {
@@ -699,17 +706,33 @@ function bindLabForm() {
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     const body = formData(form);
+    const labResultId = Number(body.id);
     const shouldSaveCustomTest = body.save_custom_test === 'yes';
+    delete body.id;
     delete body.lab_search;
     delete body.lab_category_filter;
     delete body.save_custom_test;
     await save(async () => {
+      if (labResultId) {
+        editingLabResultId = null;
+        return api.update('lab_results', labResultId, body);
+      }
       if (shouldSaveCustomTest) {
         const custom = await api.add('lab_test_catalog_custom', customLabPayloadFromLab(body));
         body.catalog_source = 'custom';
         body.catalog_id = String(custom.id);
       }
       return api.add('lab_results', body);
+    });
+  });
+  document.querySelector('[data-cancel-lab-edit]')?.addEventListener('click', () => {
+    editingLabResultId = null;
+    renderPage('labs');
+  });
+  document.querySelectorAll('[data-edit-lab]').forEach((button) => {
+    button.addEventListener('click', () => {
+      editingLabResultId = Number(button.dataset.editLab);
+      renderPage('labs');
     });
   });
 }
@@ -1359,6 +1382,10 @@ function outOfRange(row) {
 
 function labValue(row) {
   return `${fmt(row.value, 2)}${row.unit ? ` ${row.unit}` : ''}`;
+}
+
+function labActions(row) {
+  return raw(`<div class="actions"><button class="mini-button" data-edit-lab="${attr(row.id)}" type="button">Edit</button>${del('lab_results', row.id).html}</div>`);
 }
 
 function labCatalogSearch(query = '', category = '') {
