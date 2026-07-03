@@ -93,6 +93,10 @@ npm run build
 
 ## Changelog
 
+### v1.1.23
+
+- Added Activity & Burn UI for entering, editing, and reviewing daily step counts.
+
 ### v1.1.22
 
 - Added step calorie estimates to daily ledger activity burn and TDEE calculations, with walking activity double-count prevention when steps exist.

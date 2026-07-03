@@ -43,6 +43,7 @@ let draftWorkoutExercises = [];
 let selectedActivityId = null;
 let editingActivityId = null;
 let editingLabResultId = null;
+let editingStepLogId = null;
 
 boot();
 
@@ -294,6 +295,7 @@ function activity() {
   const intake = foodTotals();
   const balance = intake.calories - burn.tdee;
   const rows = activityDisplayRows();
+  const todaysSteps = latestSteps();
   if (selectedActivityId && !rows.some((row) => String(row.id) === String(selectedActivityId))) {
     selectedActivityId = null;
   }
@@ -312,16 +314,23 @@ function activity() {
   setContent(`
     <div class="grid">
       ${metrics([
+        ['Steps today', burn.steps ? fmt(burn.steps) : '--', todaysSteps ? todaysSteps.date : 'No step entry'],
+        ['Step calories', `${fmt(burn.stepBurn)} cal`, 'Estimated from profile weight'],
         ['BMR', `${fmt(bmr())} cal`, 'Katch-McArdle'],
-        ['Activity burn', `${fmt(burn.activityBurn)} cal`, 'Non-workout MET activity today'],
+        ['Activity calories', `${fmt(burn.activityBurn)} cal`, 'Steps plus non-workout activity'],
         ['Workout burn', `${fmt(burn.workoutBurn)} cal`, 'Estimated from saved workout sessions'],
         ['TDEE', `${fmt(burn.tdee)} cal`, 'BMR + burn'],
         ['Deficit / surplus', `${balance >= 0 ? '+' : ''}${fmt(balance)} cal`, `${fmt(intake.calories)} calories in today`]
       ])}
-      ${panel(editingActivity ? 'Edit activity' : 'Log activity', activityForm(editingActivity))}
+      <div class="grid two">
+        ${panel(editingStepLogId ? 'Edit daily steps' : 'Daily steps', stepForm((state.step_log || []).find((row) => row.id === editingStepLogId) || todaysSteps))}
+        ${panel(editingActivity ? 'Edit activity' : 'Log activity', activityForm(editingActivity))}
+      </div>
+      ${panel('Step history', stepHistoryTable())}
       ${panel('Activity history', activityHistoryTable(rows))}
     </div>
   `);
+  bindStepForm();
   bindActivityForm();
   bindActivityActions();
   bindDeletes();
@@ -603,6 +612,21 @@ function activityForm(row = null) {
     <div class="actions">
       <button class="primary-button">${row ? 'Update activity' : 'Save activity'}</button>
       ${row ? '<button class="ghost-button" data-cancel-activity-edit type="button">Cancel edit</button>' : ''}
+    </div>
+  </form>`;
+}
+
+function stepForm(row = null) {
+  return `<form id="stepForm">
+    ${row ? `<input type="hidden" name="id" value="${attr(row.id)}">` : ''}
+    ${fields([
+    ['date', 'Date', 'date', row?.date || today()],
+    ['steps', 'Steps', 'number', row?.steps || '']
+  ])}
+    <label>Notes<textarea name="notes">${esc(row?.notes || '')}</textarea></label>
+    <div class="actions">
+      <button class="primary-button">${row ? 'Update steps' : 'Save steps'}</button>
+      ${editingStepLogId ? '<button class="ghost-button" data-cancel-step-edit type="button">Cancel edit</button>' : ''}
     </div>
   </form>`;
 }
@@ -973,6 +997,31 @@ function bindActivityForm() {
   });
 }
 
+function bindStepForm() {
+  const form = document.getElementById('stepForm');
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const body = formData(form);
+    const stepLogId = Number(body.id) || n(latestSteps(body.date)?.id);
+    delete body.id;
+    await save(() => {
+      editingStepLogId = null;
+      if (stepLogId) return api.update('step_log', stepLogId, body);
+      return api.add('step_log', body);
+    });
+  });
+  document.querySelector('[data-cancel-step-edit]')?.addEventListener('click', () => {
+    editingStepLogId = null;
+    renderPage('activity');
+  });
+  document.querySelectorAll('[data-edit-steps]').forEach((button) => {
+    button.addEventListener('click', () => {
+      editingStepLogId = Number(button.dataset.editSteps);
+      renderPage('activity');
+    });
+  });
+}
+
 function bindActivityActions() {
   document.querySelectorAll('[data-select-activity]').forEach((button) => {
     button.addEventListener('click', () => {
@@ -1252,6 +1301,16 @@ function activityHistoryTable(rows) {
     fmt(row.duration),
     fmt(row.calories),
     activityActions(row)
+  ]));
+}
+
+function stepHistoryTable() {
+  return table(['Date', 'Steps', 'Estimated calories', 'Notes', 'Actions'], (state.step_log || []).map((row) => [
+    row.date,
+    fmt(row.steps),
+    fmt(stepCalories(row.steps)),
+    row.notes || '',
+    raw(`<div class="actions"><button class="mini-button" data-edit-steps="${attr(row.id)}" type="button">Edit</button>${del('step_log', row.id).html}</div>`)
   ]));
 }
 
