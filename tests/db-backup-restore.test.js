@@ -28,6 +28,11 @@ test('backs up and restores a validated SQLite database with a safety copy', asy
     fat: 12,
     calories: 300
   });
+  db.addRow('step_log', {
+    date: '2026-07-01',
+    steps: 8000,
+    notes: 'backup step total'
+  });
 
   const backup = await db.backup(backupPath);
   assert.equal(backup.path, backupPath);
@@ -50,8 +55,11 @@ test('backs up and restores a validated SQLite database with a safety copy', asy
   assert.equal(fs.existsSync(restore.safetyBackupPath), true);
   assert.equal(data.food_log.length, 1);
   assert.equal(data.food_log[0].description, 'Chicken');
+  assert.equal(data.step_log.length, 1);
+  assert.equal(data.step_log[0].steps, 8000);
   assert.equal(data.daily_ledger.length, 1);
   assert.equal(data.daily_ledger[0].food_calories, 300);
+  assert.equal(data.daily_ledger[0].step_count, 8000);
 });
 
 test('rejects corrupted restore files and keeps current data', () => {

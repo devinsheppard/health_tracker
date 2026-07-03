@@ -64,6 +64,15 @@ Add screenshots to GitHub Releases or repository documentation when preparing a 
 - Data is local to the installed Windows user unless manually backed up, exported, or restored.
 - Installer artifacts in `release/` are local build outputs and should be published through GitHub Releases, not committed.
 
+## Manual Release Checklist
+
+- Edit an existing lab result and confirm the row updates without a duplicate.
+- Add or edit daily steps in Activity & Burn and confirm TDEE and deficit/surplus update.
+- Add steps and a walking activity on the same date and confirm walking calories are not added twice.
+- Add steps and a non-walking activity on the same date and confirm the non-walking activity still counts.
+- Export and import full JSON and confirm step history and lab edits are retained.
+- Backup and restore the SQLite database before installing a release build.
+
 ## Development
 
 Install dependencies:
@@ -94,6 +103,10 @@ npm run build
 ```
 
 ## Changelog
+
+### v1.1.25
+
+- Added final documentation and backup/restore coverage for editable labs and step tracking.
 
 ### v1.1.24
 
