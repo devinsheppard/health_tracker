@@ -152,12 +152,26 @@ test('rejects invalid full JSON imports without replacing current rows', () => {
 
 test('imports older full JSON exports without workout templates', () => {
   db.init(tempUserData());
+  db.addRow('lab_results', {
+    date: '2026-07-01',
+    test_name: 'Legacy A1C',
+    value: 5.8,
+    reference_range: '<5.7',
+    notes: 'Older export row.'
+  });
   const exported = db.exportFullJson();
   delete exported.data.tables.workout_templates;
   delete exported.data.tables.lab_test_catalog_custom;
+  delete exported.data.tables.lab_results[0].test_category;
+  delete exported.data.tables.lab_results[0].unit;
+  delete exported.data.tables.lab_results[0].catalog_source;
+  delete exported.data.tables.lab_results[0].catalog_id;
 
   const imported = db.importFullJson(exported);
 
   assert.equal(imported.data.workout_templates.length, 0);
   assert.equal(imported.data.lab_test_catalog_custom.length, 0);
+  assert.equal(imported.data.lab_results[0].test_name, 'Legacy A1C');
+  assert.equal(imported.data.lab_results[0].unit, null);
+  assert.equal(imported.data.lab_results[0].catalog_source, null);
 });

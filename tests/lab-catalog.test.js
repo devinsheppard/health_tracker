@@ -6,6 +6,7 @@ const catalog = require('../src/renderer/labCatalog');
 test('contains a practical built-in common lab catalog', () => {
   assert.equal(catalog.categories.includes('CBC / Hematology'), true);
   assert.equal(catalog.categories.includes('Thyroid'), true);
+  assert.equal(catalog.categories.includes('Infectious Disease'), true);
   assert.ok(catalog.builtInTests.length >= 250);
   assert.ok(catalog.builtInTests.length <= 500);
 });
@@ -35,4 +36,14 @@ test('supports category filtering and id lookup', () => {
   assert.ok(thyroid.length > 5);
   assert.equal(thyroid.every((test) => test.category === 'Thyroid'), true);
   assert.equal(catalog.findBuiltInTest(thyroid[0].id).id, thyroid[0].id);
+});
+
+test('returns editable defaults for built-in lab selections', () => {
+  const a1c = catalog.findBuiltInTest('diabetes-hemoglobin-a1c');
+
+  assert.equal(a1c.displayName, 'Hemoglobin A1c');
+  assert.equal(a1c.category, 'Diabetes');
+  assert.equal(a1c.defaultUnit, '%');
+  assert.equal(a1c.referenceRange, '4.0-5.6');
+  assert.match(a1c.notes, /Editable default/);
 });

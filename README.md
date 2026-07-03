@@ -38,6 +38,7 @@ Recommended habit: make a database backup before installing a new version, befor
 - Workout sessions, exercise rows, workout templates, bodyweight handling, and a 1,000,000 lb lifetime lifting challenge
 - Activity tracking with linked workout burn
 - Weight, body fat, lean body mass, sleep, medication, and lab tracking
+- Search-first lab test catalog with common built-in tests, aliases, editable units/reference ranges, and personal custom tests
 - Chart.js trends for dashboard, glucose, weight, and labs
 - SQLite backup/restore and full JSON export/import
 - Dark/light themes and larger text scaling
@@ -56,6 +57,7 @@ Add screenshots to GitHub Releases or repository documentation when preparing a 
 
 - This app is for personal tracking and is not medical advice.
 - Calorie burn, TDEE, A1C, and workout estimates are approximations.
+- Built-in lab reference ranges are editable defaults only. Use the range from your actual lab report when it differs.
 - Weather, temperature, humidity, wearable data, and cloud sync are not integrated.
 - Data is local to the installed Windows user unless manually backed up, exported, or restored.
 - Installer artifacts in `release/` are local build outputs and should be published through GitHub Releases, not committed.
@@ -90,6 +92,35 @@ npm run build
 ```
 
 ## Changelog
+
+### v1.1.19
+
+- Completed the lab selection feature test/documentation pass.
+- Added coverage for built-in lab defaults and older lab exports missing catalog metadata.
+
+### v1.1.18
+
+- Added the option to save manually entered lab tests to the personal catalog while logging a result.
+
+### v1.1.17
+
+- Added a search-first lab picker that searches built-in and custom tests by name, abbreviation, alias, and category.
+
+### v1.1.16
+
+- Added lab result catalog metadata for selected built-in or custom lab tests.
+
+### v1.1.15
+
+- Added custom lab test catalog storage for personal tests.
+
+### v1.1.14
+
+- Added a built-in common lab test catalog with searchable aliases and editable default units/reference ranges.
+
+### v1.1.13
+
+- Completed the v1.1.0 improvement roadmap wrap-up before beginning the lab catalog work.
 
 ### v1.1.12
 
