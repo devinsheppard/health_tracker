@@ -5,7 +5,7 @@ const Database = require('better-sqlite3');
 let db;
 let dbPath;
 let dataDir;
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 const allowedTables = new Set([
   'glucose_readings',
@@ -118,7 +118,8 @@ const profileEnums = {
   sex: ['male', 'female'],
   goals: ['weight loss', 'body recomposition', 'muscle gain', 'maintenance', 'manage T2D/blood sugar'],
   diet_type: ['keto', 'carnivore', 'keto-carnivore hybrid', 'low carb', 'paleo', 'Mediterranean', 'standard American', 'IIFYM/flexible dieting', 'intermittent fasting'],
-  theme: ['dark', 'light']
+  theme: ['dark', 'light'],
+  ui_scale: ['normal', 'large', 'extra large']
 };
 
 function init(userDataPath) {
@@ -172,6 +173,11 @@ const migrations = [
     version: 3,
     name: 'workout_templates',
     up: createWorkoutTemplateSchema
+  },
+  {
+    version: 4,
+    name: 'profile_ui_scale',
+    up: createProfileUiScale
   }
 ];
 
@@ -193,6 +199,7 @@ function createBaselineSchema() {
       protein_target REAL DEFAULT 160,
       a1c_goal REAL DEFAULT 5.7,
       theme TEXT DEFAULT 'dark',
+      ui_scale TEXT DEFAULT 'normal',
       eating_window TEXT,
       updated_at TEXT
     );
@@ -300,10 +307,11 @@ function createBaselineSchema() {
   `);
 
   ensureColumn('activities', 'source_session_id', 'REAL');
+  ensureColumn('profile', 'ui_scale', "TEXT DEFAULT 'normal'");
 
   db.prepare(`
-    INSERT OR IGNORE INTO profile (id, goals, diet_type, protein_target, a1c_goal, theme, updated_at)
-    VALUES (1, 'weight loss', 'keto', 160, 5.7, 'dark', ?)
+    INSERT OR IGNORE INTO profile (id, goals, diet_type, protein_target, a1c_goal, theme, ui_scale, updated_at)
+    VALUES (1, 'weight loss', 'keto', 160, 5.7, 'dark', 'normal', ?)
   `).run(new Date().toISOString());
 }
 
@@ -354,6 +362,11 @@ function createWorkoutTemplateSchema() {
   `);
 }
 
+function createProfileUiScale() {
+  ensureColumn('profile', 'ui_scale', "TEXT DEFAULT 'normal'");
+  db.prepare("UPDATE profile SET ui_scale = 'normal' WHERE ui_scale IS NULL OR ui_scale = ''").run();
+}
+
 function getSchemaVersion() {
   return Number(db.pragma('user_version', { simple: true })) || 0;
 }
@@ -388,7 +401,7 @@ function saveProfile(profile) {
   const fields = [
     'name', 'date_of_birth', 'sex', 'height_ft', 'height_in', 'current_weight',
     'body_fat', 'lean_body_mass', 'goals', 'diet_type', 'medical_conditions',
-    'protein_target', 'a1c_goal', 'theme', 'eating_window'
+    'protein_target', 'a1c_goal', 'theme', 'ui_scale', 'eating_window'
   ];
   const values = fields.map((field) => clean(profile[field]));
   db.prepare(`
@@ -396,7 +409,7 @@ function saveProfile(profile) {
       name = ?, date_of_birth = ?, sex = ?, height_ft = ?, height_in = ?,
       current_weight = ?, body_fat = ?, lean_body_mass = ?, goals = ?,
       diet_type = ?, medical_conditions = ?, protein_target = ?,
-      a1c_goal = ?, theme = ?, eating_window = ?, updated_at = ?
+      a1c_goal = ?, theme = ?, ui_scale = ?, eating_window = ?, updated_at = ?
     WHERE id = 1
   `).run(...values, new Date().toISOString());
   return getAllData();
@@ -457,7 +470,7 @@ function clearAll() {
         name = NULL, date_of_birth = NULL, sex = NULL, height_ft = NULL, height_in = NULL,
         current_weight = NULL, body_fat = NULL, lean_body_mass = NULL,
         medical_conditions = NULL, goals = 'weight loss', diet_type = 'keto',
-        protein_target = 160, a1c_goal = 5.7, theme = 'dark', eating_window = NULL,
+        protein_target = 160, a1c_goal = 5.7, theme = 'dark', ui_scale = 'normal', eating_window = NULL,
         updated_at = ?
       WHERE id = 1
     `).run(new Date().toISOString());
@@ -768,14 +781,14 @@ function importProfile(profile) {
   const fields = [
     'name', 'date_of_birth', 'sex', 'height_ft', 'height_in', 'current_weight',
     'body_fat', 'lean_body_mass', 'goals', 'diet_type', 'medical_conditions',
-    'protein_target', 'a1c_goal', 'theme', 'eating_window'
+    'protein_target', 'a1c_goal', 'theme', 'ui_scale', 'eating_window'
   ];
   db.prepare(`
     UPDATE profile SET
       name = ?, date_of_birth = ?, sex = ?, height_ft = ?, height_in = ?,
       current_weight = ?, body_fat = ?, lean_body_mass = ?, goals = ?,
       diet_type = ?, medical_conditions = ?, protein_target = ?,
-      a1c_goal = ?, theme = ?, eating_window = ?, updated_at = ?
+      a1c_goal = ?, theme = ?, ui_scale = ?, eating_window = ?, updated_at = ?
     WHERE id = 1
   `).run(...fields.map((field) => clean(profile[field])), new Date().toISOString());
 }

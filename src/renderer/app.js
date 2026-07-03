@@ -61,13 +61,14 @@ async function boot() {
 
 async function refresh() {
   state = await api.getAll();
-  applyTheme();
+  applyAppearance();
   document.getElementById('profileChip').textContent = state.profile?.name || 'Local SQLite';
   renderPage(currentPage);
 }
 
-function applyTheme() {
+function applyAppearance() {
   document.body.classList.toggle('light', state.profile?.theme === 'light');
+  document.body.dataset.uiScale = state.profile?.ui_scale || 'normal';
 }
 
 function renderNav() {
@@ -646,6 +647,7 @@ function profileForm(p) {
     ['protein_target', 'Protein target (g)', 'number', p.protein_target || 160],
     ['a1c_goal', 'A1c goal (%)', 'number', p.a1c_goal || 5.7],
     ['theme', 'Theme', 'select', p.theme || 'dark', ['dark', 'light']],
+    ['ui_scale', 'Text size', 'select', p.ui_scale || 'normal', ['normal', 'large', 'extra large']],
     ['eating_window', 'Eating window', 'text', p.eating_window || '']
   ])}<label>Active medical conditions<textarea name="medical_conditions">${esc(p.medical_conditions || '')}</textarea></label><p class="muted">Age: ${age(p.date_of_birth) || '--'} | Lean body mass: ${fmt(lbm(p), 1)} lbs | BMR: ${fmt(bmr())} cal</p><button class="primary-button">Save profile</button></form>`;
 }

@@ -36,6 +36,7 @@ test('accepts valid profile and health rows', () => {
     protein_target: 160,
     a1c_goal: 5.7,
     theme: 'dark',
+    ui_scale: 'large',
     eating_window: ''
   });
 
@@ -47,6 +48,7 @@ test('accepts valid profile and health rows', () => {
 
   const data = db.getAllData();
   assert.equal(data.profile.sex, 'male');
+  assert.equal(data.profile.ui_scale, 'large');
   assert.equal(data.daily_ledger.length, 1);
   assert.equal(data.daily_ledger[0].food_calories, 330);
 });
@@ -114,6 +116,7 @@ test('rejects invalid profile values', () => {
   init();
 
   assert.throws(() => db.saveProfile({ sex: 'unknown', theme: 'dark' }), /Validation failed: sex/);
+  assert.throws(() => db.saveProfile({ sex: 'male', theme: 'dark', ui_scale: 'giant' }), /Validation failed: ui_scale/);
   assert.throws(() => db.saveProfile({ date_of_birth: '2026-02-31', sex: 'male' }), /Validation failed: date_of_birth/);
   assert.equal(db.getAllData().profile.sex, null);
 });
