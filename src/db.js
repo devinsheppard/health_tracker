@@ -5,7 +5,7 @@ const Database = require('better-sqlite3');
 let db;
 let dbPath;
 let dataDir;
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 const allowedTables = new Set([
   'glucose_readings',
@@ -31,7 +31,7 @@ const tableColumns = {
   weight_log: ['date', 'weight', 'body_fat', 'lean_body_mass', 'notes'],
   sleep_log: ['date', 'hours', 'quality', 'morning_glucose', 'notes'],
   medications: ['name', 'dose', 'frequency', 'timing', 'purpose_notes'],
-  lab_results: ['date', 'test_name', 'value', 'reference_range', 'notes'],
+  lab_results: ['date', 'test_name', 'test_category', 'unit', 'value', 'reference_range', 'notes', 'catalog_source', 'catalog_id'],
   lab_test_catalog_custom: ['display_name', 'abbreviation', 'aliases', 'category', 'default_unit', 'reference_range', 'notes']
 };
 
@@ -117,7 +117,12 @@ const validators = {
   lab_results: (row, partial = false) => {
     dateField(row, 'date', partial);
     textField(row, 'test_name', { required: !partial, max: 200 });
+    textField(row, 'test_category', { max: 120 });
+    textField(row, 'unit', { max: 80 });
     numberField(row, 'value', { min: -100000, max: 100000, required: !partial });
+    textField(row, 'reference_range', { max: 200 });
+    textField(row, 'catalog_source', { max: 40 });
+    textField(row, 'catalog_id', { max: 200 });
   },
   lab_test_catalog_custom: (row, partial = false) => {
     textField(row, 'display_name', { required: !partial, max: 200 });
@@ -199,6 +204,11 @@ const migrations = [
     version: 5,
     name: 'custom_lab_test_catalog',
     up: createCustomLabTestCatalog
+  },
+  {
+    version: 6,
+    name: 'lab_result_catalog_metadata',
+    up: createLabResultCatalogMetadata
   }
 ];
 
@@ -320,9 +330,13 @@ function createBaselineSchema() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       date TEXT NOT NULL,
       test_name TEXT,
+      test_category TEXT,
+      unit TEXT,
       value REAL,
       reference_range TEXT,
       notes TEXT,
+      catalog_source TEXT,
+      catalog_id TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -414,6 +428,13 @@ function createCustomLabTestCatalog() {
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
   `);
+}
+
+function createLabResultCatalogMetadata() {
+  ensureColumn('lab_results', 'test_category', 'TEXT');
+  ensureColumn('lab_results', 'unit', 'TEXT');
+  ensureColumn('lab_results', 'catalog_source', 'TEXT');
+  ensureColumn('lab_results', 'catalog_id', 'TEXT');
 }
 
 function getSchemaVersion() {

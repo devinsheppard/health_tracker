@@ -53,6 +53,17 @@ test('exports and imports full JSON while preserving ids and rebuilding ledger',
     fat: 12,
     calories: 300
   });
+  const lab = db.addRow('lab_results', {
+    date: '2026-07-01',
+    test_name: 'Hemoglobin A1c',
+    test_category: 'Diabetes',
+    unit: '%',
+    value: 5.8,
+    reference_range: '<5.7',
+    notes: 'lab note',
+    catalog_source: 'built-in',
+    catalog_id: 'diabetes-hemoglobin-a1c'
+  });
   const template = db.addRow('workout_templates', {
     name: 'Saved push day',
     duration: 60,
@@ -78,6 +89,8 @@ test('exports and imports full JSON while preserving ids and rebuilding ledger',
   assert.equal(exported.data.tables.workout_sessions[0].id, session.id);
   assert.equal(exported.data.tables.workout_exercises[0].id, exercise.id);
   assert.equal(exported.data.tables.workout_templates[0].id, template.id);
+  assert.equal(exported.data.tables.lab_results[0].id, lab.id);
+  assert.equal(exported.data.tables.lab_results[0].unit, '%');
   assert.equal(exported.data.tables.lab_test_catalog_custom[0].id, customLab.id);
 
   db.clearAll();
@@ -91,6 +104,8 @@ test('exports and imports full JSON while preserving ids and rebuilding ledger',
   assert.equal(data.workout_sessions[0].id, session.id);
   assert.equal(data.workout_exercises[0].session_id, session.id);
   assert.equal(data.workout_templates[0].name, 'Saved push day');
+  assert.equal(data.lab_results[0].catalog_id, 'diabetes-hemoglobin-a1c');
+  assert.equal(data.lab_results[0].unit, '%');
   assert.equal(data.lab_test_catalog_custom[0].display_name, 'Personal Lab Marker');
   assert.equal(data.food_log[0].description, 'Chicken');
   assert.equal(data.daily_ledger[0].workout_volume, 3000);

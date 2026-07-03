@@ -44,11 +44,23 @@ test('accepts valid profile and health rows', () => {
   db.addRow('food_log', { date: '2026-07-01', meal_type: 'breakfast', description: 'Eggs', net_carbs: 2, protein: 30, fat: 22, calories: 330 });
   db.addRow('weight_log', { date: '2026-07-01', weight: 240, body_fat: 25, lean_body_mass: 180, notes: '' });
   db.addRow('sleep_log', { date: '2026-07-01', hours: 7.5, quality: 'good', morning_glucose: 108, notes: '' });
-  db.addRow('lab_results', { date: '2026-07-01', test_name: 'A1C', value: 5.8, reference_range: '<5.7', notes: '' });
+  db.addRow('lab_results', {
+    date: '2026-07-01',
+    test_name: 'Hemoglobin A1c',
+    test_category: 'Diabetes',
+    unit: '%',
+    value: 5.8,
+    reference_range: '<5.7',
+    notes: '',
+    catalog_source: 'built-in',
+    catalog_id: 'diabetes-hemoglobin-a1c'
+  });
 
   const data = db.getAllData();
   assert.equal(data.profile.sex, 'male');
   assert.equal(data.profile.ui_scale, 'large');
+  assert.equal(data.lab_results[0].unit, '%');
+  assert.equal(data.lab_results[0].catalog_source, 'built-in');
   assert.equal(data.daily_ledger.length, 1);
   assert.equal(data.daily_ledger[0].food_calories, 330);
 });

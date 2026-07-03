@@ -382,7 +382,7 @@ function labs() {
         ${panel('Log lab result', labForm())}
         ${panel('A1c progression', '<div class="chart-wrap"><canvas id="a1cChart"></canvas></div>')}
       </div>
-      ${panel('Lab history', table(['Date', 'Test', 'Value', 'Range', 'Flag', 'Notes', ''], state.lab_results.map((r) => [r.date, r.test_name, fmt(r.value, 2), r.reference_range, outOfRange(r) ? raw('<span class="reading-amber">Review</span>') : 'In range', r.notes || '', del('lab_results', r.id)])))}
+      ${panel('Lab history', table(['Date', 'Test', 'Category', 'Value', 'Range', 'Flag', 'Notes', ''], state.lab_results.map((r) => [r.date, r.test_name, r.test_category || '', labValue(r), r.reference_range, outOfRange(r) ? raw('<span class="reading-amber">Review</span>') : 'In range', r.notes || '', del('lab_results', r.id)])))}
     </div>
   `);
   bindForm('labForm', 'lab_results');
@@ -621,6 +621,8 @@ function labForm() {
   return `<form id="labForm">${fields([
     ['date', 'Date', 'date', today()],
     ['test_name', 'Test name', 'text'],
+    ['test_category', 'Category', 'text'],
+    ['unit', 'Unit', 'text'],
     ['value', 'Value', 'number'],
     ['reference_range', 'Reference range', 'text']
   ])}<label>Notes<textarea name="notes"></textarea></label><button class="primary-button">Save lab</button></form>`;
@@ -1280,6 +1282,10 @@ function outOfRange(row) {
   const greater = range.match(/>\s*([0-9.]+)/);
   if (greater) return value <= Number(greater[1]);
   return false;
+}
+
+function labValue(row) {
+  return `${fmt(row.value, 2)}${row.unit ? ` ${row.unit}` : ''}`;
 }
 
 function a1cTrend(rows) {
