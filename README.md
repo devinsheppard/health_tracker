@@ -104,6 +104,10 @@ npm run build
 
 ## Changelog
 
+### v1.1.26
+
+- Constrained the startup window size to the current monitor work area so the app no longer opens larger than the screen.
+
 ### v1.1.25
 
 - Added final documentation and backup/restore coverage for editable labs and step tracking.

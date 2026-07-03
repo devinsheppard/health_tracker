@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, nativeTheme } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, nativeTheme, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const db = require('./db');
@@ -6,11 +6,16 @@ const db = require('./db');
 let mainWindow;
 
 function createWindow() {
+  const { workAreaSize } = screen.getPrimaryDisplay();
+  const width = Math.min(1360, workAreaSize.width);
+  const height = Math.min(860, workAreaSize.height);
+
   mainWindow = new BrowserWindow({
-    width: 1360,
-    height: 860,
-    minWidth: 1180,
-    minHeight: 720,
+    width,
+    height,
+    minWidth: Math.min(960, width),
+    minHeight: Math.min(640, height),
+    center: true,
     title: 'My Health Tracker',
     icon: path.join(__dirname, '..', 'build', 'icon.ico'),
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#10151f' : '#f5f7fb',
