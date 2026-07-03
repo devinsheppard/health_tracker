@@ -93,6 +93,10 @@ npm run build
 
 ## Changelog
 
+### v1.1.22
+
+- Added step calorie estimates to daily ledger activity burn and TDEE calculations, with walking activity double-count prevention when steps exist.
+
 ### v1.1.21
 
 - Added database storage, validation, migration, and JSON import/export support for daily step history.

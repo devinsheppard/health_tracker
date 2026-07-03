@@ -96,6 +96,11 @@ test('maintains one daily ledger row with health totals for each date', () => {
     kind: 'activity',
     source_session_id: null
   });
+  db.addRow('step_log', {
+    date: '2026-07-01',
+    steps: 10000,
+    notes: 'watch total'
+  });
   db.addRow('sleep_log', {
     date: '2026-07-01',
     hours: 7.5,
@@ -124,8 +129,10 @@ test('maintains one daily ledger row with health totals for each date', () => {
   assert.equal(row.net_carbs, 3);
   assert.equal(row.protein, 90);
   assert.equal(row.fat, 52);
-  assert.equal(row.activity_calories, 150);
-  assert.equal(row.activity_minutes, 30);
+  assert.equal(row.step_count, 10000);
+  assert.equal(Number(row.step_calories.toFixed(1)), 602.3);
+  assert.equal(Number(row.activity_calories.toFixed(1)), 602.3);
+  assert.equal(row.activity_minutes, 0);
   assert.equal(row.workout_calories, 400);
   assert.equal(row.workout_minutes, 60);
   assert.equal(row.workout_sessions, 1);
@@ -138,9 +145,59 @@ test('maintains one daily ledger row with health totals for each date', () => {
   assert.match(row.notes, /Glucose: morning reading/);
   assert.match(row.notes, /Workout: upper body/);
   assert.match(row.notes, /Activity: outside walk/);
+  assert.match(row.notes, /Steps: watch total/);
   assert.match(row.notes, /Weight: weekly weigh-in/);
   assert.match(row.notes, /Sleep: slept well/);
   assert.match(row.notes, /Lab: review next visit/);
+});
+
+test('counts non-walking activity with steps while preventing walking double count', () => {
+  const userDataPath = tempUserData();
+  db.init(userDataPath);
+  db.saveProfile({
+    sex: 'male',
+    current_weight: 220,
+    height_ft: 6,
+    height_in: 0,
+    goals: 'weight loss',
+    diet_type: 'keto',
+    theme: 'dark'
+  });
+
+  db.addRow('step_log', { date: '2026-07-01', steps: 10000, notes: '' });
+  db.addRow('activities', {
+    date: '2026-07-01',
+    name: 'Moderate walking',
+    met: 3.5,
+    duration: 30,
+    calories: 150,
+    notes: '',
+    kind: 'activity',
+    source_session_id: null
+  });
+  db.addRow('activities', {
+    date: '2026-07-01',
+    name: 'Cycling',
+    met: 8,
+    duration: 30,
+    calories: 300,
+    notes: '',
+    kind: 'activity',
+    source_session_id: null
+  });
+
+  let row = db.getAllData().daily_ledger[0];
+  assert.equal(row.step_count, 10000);
+  assert.equal(Number(row.step_calories.toFixed(1)), 547.2);
+  assert.equal(Number(row.activity_calories.toFixed(1)), 847.2);
+  assert.equal(row.activity_minutes, 30);
+
+  const step = db.getAllData().step_log[0];
+  db.updateRow('step_log', step.id, { steps: 5000 });
+  row = db.getAllData().daily_ledger[0];
+  assert.equal(row.step_count, 5000);
+  assert.equal(Number(row.step_calories.toFixed(1)), 273.6);
+  assert.equal(Number(row.activity_calories.toFixed(1)), 573.6);
 });
 
 test('updates the daily ledger after source rows are edited or deleted', () => {

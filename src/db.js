@@ -1,11 +1,12 @@
 const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
+const calculations = require('./shared/calculations');
 
 let db;
 let dbPath;
 let dataDir;
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 
 const allowedTables = new Set([
   'glucose_readings',
@@ -223,6 +224,11 @@ const migrations = [
     version: 7,
     name: 'daily_step_log',
     up: createStepLogSchema
+  },
+  {
+    version: 8,
+    name: 'daily_ledger_step_totals',
+    up: createDailyLedgerStepTotals
   }
 ];
 
@@ -399,6 +405,8 @@ function createDailyLedgerSchema() {
       net_carbs REAL DEFAULT 0,
       protein REAL DEFAULT 0,
       fat REAL DEFAULT 0,
+      step_count INTEGER DEFAULT 0,
+      step_calories REAL DEFAULT 0,
       activity_calories REAL DEFAULT 0,
       activity_minutes REAL DEFAULT 0,
       workout_calories REAL DEFAULT 0,
@@ -469,6 +477,11 @@ function createStepLogSchema() {
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
   `);
+}
+
+function createDailyLedgerStepTotals() {
+  ensureColumn('daily_ledger', 'step_count', 'INTEGER DEFAULT 0');
+  ensureColumn('daily_ledger', 'step_calories', 'REAL DEFAULT 0');
   rebuildDailyLedger();
 }
 
@@ -629,13 +642,13 @@ function rebuildDailyLedger() {
     INSERT INTO daily_ledger (
       date, weight, body_fat, lean_body_mass, glucose_count, glucose_avg,
       fasting_glucose_count, fasting_glucose_avg, food_calories, net_carbs,
-      protein, fat, activity_calories, activity_minutes, workout_calories,
+      protein, fat, step_count, step_calories, activity_calories, activity_minutes, workout_calories,
       workout_minutes, workout_sessions, workout_volume, lifetime_lifting_total,
       sleep_hours, sleep_quality, morning_glucose, lab_count, notes, updated_at
     ) VALUES (
       @date, @weight, @body_fat, @lean_body_mass, @glucose_count, @glucose_avg,
       @fasting_glucose_count, @fasting_glucose_avg, @food_calories, @net_carbs,
-      @protein, @fat, @activity_calories, @activity_minutes, @workout_calories,
+      @protein, @fat, @step_count, @step_calories, @activity_calories, @activity_minutes, @workout_calories,
       @workout_minutes, @workout_sessions, @workout_volume, @lifetime_lifting_total,
       @sleep_hours, @sleep_quality, @morning_glucose, @lab_count, @notes, @updated_at
     )
@@ -681,14 +694,28 @@ function dailyLedgerRow(date) {
     FROM food_log
     WHERE date = ?
   `, [date]) || {};
-  const activity = one(`
-    SELECT
-      SUM(CASE WHEN kind = 'workout' THEN 0 ELSE calories END) AS activity_calories,
-      SUM(CASE WHEN kind = 'workout' THEN 0 ELSE duration END) AS activity_minutes,
-      SUM(CASE WHEN kind = 'workout' THEN calories ELSE 0 END) AS workout_calories
-    FROM activities
+  const step = one(`
+    SELECT steps
+    FROM step_log
     WHERE date = ?
+    ORDER BY id DESC
+    LIMIT 1
   `, [date]) || {};
+  const profile = one('SELECT current_weight, height_ft, height_in FROM profile WHERE id = 1') || {};
+  const weightForSteps = clean(weight.weight) || clean(profile.current_weight);
+  const stepCalories = calculations.stepCalories(step.steps, weightForSteps, profile.height_ft, profile.height_in);
+  const hasStepCalories = n(step.steps) > 0 && n(stepCalories) > 0;
+  const activity = all('SELECT name, duration, calories, kind FROM activities WHERE date = ?', [date])
+    .reduce((sum, row) => {
+      if (row.kind === 'workout') {
+        sum.workout_calories += n(row.calories);
+        return sum;
+      }
+      if (hasStepCalories && calculations.isWalkingActivity(row.name)) return sum;
+      sum.activity_calories += n(row.calories);
+      sum.activity_minutes += n(row.duration);
+      return sum;
+    }, { activity_calories: stepCalories, activity_minutes: 0, workout_calories: 0 });
   const workout = one(`
     SELECT COUNT(*) AS sessions, SUM(duration) AS minutes
     FROM workout_sessions
@@ -728,6 +755,8 @@ function dailyLedgerRow(date) {
     net_carbs: n(food.net_carbs),
     protein: n(food.protein),
     fat: n(food.fat),
+    step_count: n(step.steps),
+    step_calories: n(stepCalories),
     activity_calories: n(activity.activity_calories),
     activity_minutes: n(activity.activity_minutes),
     workout_calories: n(activity.workout_calories),

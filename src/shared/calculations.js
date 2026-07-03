@@ -66,6 +66,17 @@
     return n(met) * lbToKg(weightPounds) * (n(minutes) / 60);
   }
 
+  function stepCalories(steps, weightPounds, heightFt = 0, heightIn = 0) {
+    const heightTotalInches = n(heightFt) * 12 + n(heightIn);
+    const strideFeet = heightTotalInches ? heightTotalInches * 0.413 / 12 : 2.5;
+    const miles = n(steps) * strideFeet / 5280;
+    return miles * n(weightPounds) * 0.53;
+  }
+
+  function isWalkingActivity(name) {
+    return /\bwalk(?:ing)?\b/i.test(String(name || ''));
+  }
+
   function workoutMet(effort) {
     return { light: 3.5, moderate: 5, vigorous: 6 }[effort] || 5;
   }
@@ -126,6 +137,8 @@
     glucoseClass,
     a1cFlag,
     metCalories,
+    stepCalories,
+    isWalkingActivity,
     workoutMet,
     estimatedExerciseMinutes,
     workoutCalorieEstimate,

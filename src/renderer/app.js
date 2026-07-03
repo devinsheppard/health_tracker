@@ -14,6 +14,8 @@ const {
   glucoseClass,
   a1cFlag,
   metCalories: calculateMetCalories,
+  stepCalories: calculateStepCalories,
+  isWalkingActivity,
   workoutMet,
   workoutCalorieEstimate: calculateWorkoutCalories,
   exercisePounds: calculateExercisePounds,
@@ -105,6 +107,10 @@ function todayRows(table, date = today()) {
   return (state[table] || []).filter((row) => row.date === date);
 }
 
+function latestSteps(date = today()) {
+  return [...todayRows('step_log', date)].sort((a, b) => n(b.id) - n(a.id))[0] || null;
+}
+
 function profileWeight() {
   return latestWeight()?.weight || state.profile?.current_weight || 0;
 }
@@ -125,13 +131,19 @@ function bmr() {
 }
 
 function dailyBurn(date = today()) {
-  const activityBurn = todayRows('activities', date).filter((row) => row.kind !== 'workout').reduce((sum, row) => sum + n(row.calories), 0);
+  const steps = latestSteps(date);
+  const stepBurn = stepCalories(steps?.steps || 0);
+  const hasStepCalories = n(steps?.steps) > 0 && n(stepBurn) > 0;
+  const activityBurn = todayRows('activities', date)
+    .filter((row) => row.kind !== 'workout')
+    .filter((row) => !(hasStepCalories && isWalkingActivity(row.name)))
+    .reduce((sum, row) => sum + n(row.calories), stepBurn);
   const workoutActivityBurn = todayRows('activities', date).filter((row) => row.kind === 'workout').reduce((sum, row) => sum + n(row.calories), 0);
   const unlinkedWorkoutBurn = (state.workout_sessions || [])
     .filter((session) => session.date === date && !workoutActivityForSession(session.id))
     .reduce((sum, session) => sum + n(workoutCalorieEstimate(session, exercisesForSession(session.id)).calories), 0);
   const workoutBurn = workoutActivityBurn + unlinkedWorkoutBurn;
-  return { activityBurn, workoutBurn, tdee: bmr() + activityBurn + workoutBurn };
+  return { activityBurn, workoutBurn, stepBurn, steps: n(steps?.steps), tdee: bmr() + activityBurn + workoutBurn };
 }
 
 function foodTotals(date = today()) {
@@ -1186,6 +1198,10 @@ function carbFlag(carbs) {
 
 function metCalories(met, minutes) {
   return calculateMetCalories(met, minutes, profileWeight());
+}
+
+function stepCalories(steps) {
+  return calculateStepCalories(steps, profileWeight(), state.profile?.height_ft, state.profile?.height_in);
 }
 
 function exercisesForSession(sessionId) {

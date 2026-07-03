@@ -45,6 +45,16 @@ test('calculates activity calories from MET, duration, and body weight', () => {
   assert.equal(Number(calc.metCalories(5, 60, 220).toFixed(1)), 499);
 });
 
+test('estimates step calories from steps, weight, and height', () => {
+  assert.equal(Number(calc.stepCalories(10000, 220, 6, 0).toFixed(1)), 547.2);
+});
+
+test('detects walking activities for step double-count prevention', () => {
+  assert.equal(calc.isWalkingActivity('Moderate walking'), true);
+  assert.equal(calc.isWalkingActivity('Brisk walk'), true);
+  assert.equal(calc.isWalkingActivity('Cycling'), false);
+});
+
 test('calculates exercise pounds for bilateral, single-side, bodyweight, and timed modes', () => {
   assert.equal(calc.exercisePounds({ mode: 'bilateral', sets: 3, reps: 10, weight: 100 }, 200), 3000);
   assert.equal(calc.exercisePounds({ mode: 'single', sets: 3, reps: 10, weight: 25 }, 200), 1500);
