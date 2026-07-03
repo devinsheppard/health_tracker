@@ -112,6 +112,25 @@ test('accepts valid workout templates', () => {
   assert.equal(JSON.parse(template.exercises).length, 2);
 });
 
+test('accepts valid custom lab catalog tests', () => {
+  init();
+
+  db.addRow('lab_test_catalog_custom', {
+    display_name: 'Experimental Marker',
+    abbreviation: 'EXP',
+    aliases: 'experimental marker, research marker',
+    category: 'Other',
+    default_unit: 'units',
+    reference_range: '1-5',
+    notes: 'Personal catalog default, editable when logging.'
+  });
+
+  const custom = db.getAllData().lab_test_catalog_custom[0];
+  assert.equal(custom.display_name, 'Experimental Marker');
+  assert.equal(custom.category, 'Other');
+});
+
+
 test('rejects invalid profile values', () => {
   init();
 
@@ -147,11 +166,21 @@ test('rejects invalid health rows without saving them', () => {
     morning_glucose: 100,
     notes: ''
   }), /Validation failed: hours/);
+  assert.throws(() => db.addRow('lab_test_catalog_custom', {
+    display_name: '',
+    abbreviation: 'BAD',
+    aliases: '',
+    category: 'Other',
+    default_unit: '',
+    reference_range: '',
+    notes: ''
+  }), /Validation failed: display_name/);
 
   const data = db.getAllData();
   assert.equal(data.glucose_readings.length, 0);
   assert.equal(data.food_log.length, 0);
   assert.equal(data.sleep_log.length, 0);
+  assert.equal(data.lab_test_catalog_custom.length, 0);
 });
 
 test('rejects invalid workout and activity rows without saving them', () => {

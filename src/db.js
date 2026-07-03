@@ -5,7 +5,7 @@ const Database = require('better-sqlite3');
 let db;
 let dbPath;
 let dataDir;
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 const allowedTables = new Set([
   'glucose_readings',
@@ -17,7 +17,8 @@ const allowedTables = new Set([
   'weight_log',
   'sleep_log',
   'medications',
-  'lab_results'
+  'lab_results',
+  'lab_test_catalog_custom'
 ]);
 
 const tableColumns = {
@@ -30,7 +31,8 @@ const tableColumns = {
   weight_log: ['date', 'weight', 'body_fat', 'lean_body_mass', 'notes'],
   sleep_log: ['date', 'hours', 'quality', 'morning_glucose', 'notes'],
   medications: ['name', 'dose', 'frequency', 'timing', 'purpose_notes'],
-  lab_results: ['date', 'test_name', 'value', 'reference_range', 'notes']
+  lab_results: ['date', 'test_name', 'value', 'reference_range', 'notes'],
+  lab_test_catalog_custom: ['display_name', 'abbreviation', 'aliases', 'category', 'default_unit', 'reference_range', 'notes']
 };
 
 const sourceTablesWithDates = [
@@ -42,6 +44,11 @@ const sourceTablesWithDates = [
   'sleep_log',
   'lab_results'
 ];
+
+const optionalImportTables = new Set([
+  'workout_templates',
+  'lab_test_catalog_custom'
+]);
 
 const validators = {
   glucose_readings: (row, partial = false) => {
@@ -111,6 +118,15 @@ const validators = {
     dateField(row, 'date', partial);
     textField(row, 'test_name', { required: !partial, max: 200 });
     numberField(row, 'value', { min: -100000, max: 100000, required: !partial });
+  },
+  lab_test_catalog_custom: (row, partial = false) => {
+    textField(row, 'display_name', { required: !partial, max: 200 });
+    textField(row, 'abbreviation', { max: 80 });
+    textField(row, 'aliases', { max: 1000 });
+    textField(row, 'category', { max: 120 });
+    textField(row, 'default_unit', { max: 80 });
+    textField(row, 'reference_range', { max: 200 });
+    textField(row, 'notes', { max: 2000 });
   }
 };
 
@@ -178,6 +194,11 @@ const migrations = [
     version: 4,
     name: 'profile_ui_scale',
     up: createProfileUiScale
+  },
+  {
+    version: 5,
+    name: 'custom_lab_test_catalog',
+    up: createCustomLabTestCatalog
   }
 ];
 
@@ -304,6 +325,18 @@ function createBaselineSchema() {
       notes TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS lab_test_catalog_custom (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      display_name TEXT NOT NULL,
+      abbreviation TEXT,
+      aliases TEXT,
+      category TEXT,
+      default_unit TEXT,
+      reference_range TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   ensureColumn('activities', 'source_session_id', 'REAL');
@@ -367,6 +400,22 @@ function createProfileUiScale() {
   db.prepare("UPDATE profile SET ui_scale = 'normal' WHERE ui_scale IS NULL OR ui_scale = ''").run();
 }
 
+function createCustomLabTestCatalog() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS lab_test_catalog_custom (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      display_name TEXT NOT NULL,
+      abbreviation TEXT,
+      aliases TEXT,
+      category TEXT,
+      default_unit TEXT,
+      reference_range TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+}
+
 function getSchemaVersion() {
   return Number(db.pragma('user_version', { simple: true })) || 0;
 }
@@ -392,7 +441,8 @@ function getAllData() {
     weight_log: all('SELECT * FROM weight_log ORDER BY date DESC, id DESC'),
     sleep_log: all('SELECT * FROM sleep_log ORDER BY date DESC, id DESC'),
     medications: all('SELECT * FROM medications ORDER BY name COLLATE NOCASE'),
-    lab_results: all('SELECT * FROM lab_results ORDER BY date DESC, test_name COLLATE NOCASE')
+    lab_results: all('SELECT * FROM lab_results ORDER BY date DESC, test_name COLLATE NOCASE'),
+    lab_test_catalog_custom: all('SELECT * FROM lab_test_catalog_custom ORDER BY display_name COLLATE NOCASE, id DESC')
   };
 }
 
@@ -768,7 +818,7 @@ function validateImportPayload(payload) {
   validateProfile(payload.data.profile || {});
   for (const table of allowedTables) {
     const rows = payload.data.tables[table];
-    if (rows === undefined && table === 'workout_templates') continue;
+    if (rows === undefined && optionalImportTables.has(table)) continue;
     if (!Array.isArray(rows)) throw new Error(`Import file is missing table: ${table}`);
     for (const row of rows) {
       integerField(row, 'id', { min: 1 });

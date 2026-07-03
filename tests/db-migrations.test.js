@@ -33,10 +33,12 @@ test('initializes a new database at the current schema version', () => {
       { version: 1, name: 'baseline_health_tracker_schema' },
       { version: 2, name: 'daily_ledger_summary' },
       { version: 3, name: 'workout_templates' },
-      { version: 4, name: 'profile_ui_scale' }
+      { version: 4, name: 'profile_ui_scale' },
+      { version: 5, name: 'custom_lab_test_catalog' }
     ]);
     assert.equal(raw.prepare('SELECT COUNT(*) AS count FROM profile').get().count, 1);
     assert.equal(raw.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name = 'workout_templates'").get().count, 1);
+    assert.equal(raw.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name = 'lab_test_catalog_custom'").get().count, 1);
     assert.equal(raw.prepare('SELECT ui_scale FROM profile WHERE id = 1').get().ui_scale, 'normal');
   } finally {
     raw.close();
@@ -75,4 +77,5 @@ test('migrates an existing unversioned database without losing rows', () => {
   assert.equal(data.daily_ledger.length, 1);
   assert.equal(data.daily_ledger[0].food_calories, 300);
   assert.equal(data.profile.ui_scale, 'normal');
+  assert.deepEqual(data.lab_test_catalog_custom, []);
 });
