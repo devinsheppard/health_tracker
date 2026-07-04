@@ -43,6 +43,8 @@ test('initializes a new database at the current schema version', () => {
     assert.equal(raw.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name = 'workout_templates'").get().count, 1);
     assert.equal(raw.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name = 'lab_test_catalog_custom'").get().count, 1);
     assert.equal(raw.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name = 'step_log'").get().count, 1);
+    const activityColumns = raw.prepare('PRAGMA table_info(activities)').all();
+    assert.equal(activityColumns.find((column) => column.name === 'source_session_id').type, 'INTEGER');
     const labColumns = raw.prepare('PRAGMA table_info(lab_results)').all().map((column) => column.name);
     assert.equal(labColumns.includes('test_category'), true);
     assert.equal(labColumns.includes('unit'), true);

@@ -104,6 +104,10 @@ npm run build
 
 ## Changelog
 
+### v1.1.27
+
+- Made renderer step-calorie/TDEE calculation pass weight and height explicitly and added regression coverage for step-inclusive burn totals.
+
 ### v1.1.26
 
 - Constrained the startup window size to the current monitor work area so the app no longer opens larger than the screen.

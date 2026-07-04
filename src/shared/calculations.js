@@ -77,6 +77,24 @@
     return /\bwalk(?:ing)?\b/i.test(String(name || ''));
   }
 
+  function activityBurnTotals(activityRows = [], options = {}) {
+    const stepBurn = stepCalories(options.steps, options.weightPounds, options.heightFt, options.heightIn);
+    const hasStepCalories = n(options.steps) > 0 && n(stepBurn) > 0;
+    const totals = (activityRows || []).reduce((sum, row) => {
+      if (row?.kind === 'workout') return sum;
+      if (hasStepCalories && isWalkingActivity(row?.name)) return sum;
+      return {
+        calories: sum.calories + n(row?.calories),
+        minutes: sum.minutes + n(row?.duration)
+      };
+    }, { calories: stepBurn, minutes: 0 });
+    return {
+      activityBurn: totals.calories,
+      activityMinutes: totals.minutes,
+      stepBurn
+    };
+  }
+
   function workoutMet(effort) {
     return { light: 3.5, moderate: 5, vigorous: 6 }[effort] || 5;
   }
@@ -139,6 +157,7 @@
     metCalories,
     stepCalories,
     isWalkingActivity,
+    activityBurnTotals,
     workoutMet,
     estimatedExerciseMinutes,
     workoutCalorieEstimate,

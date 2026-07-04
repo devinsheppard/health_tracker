@@ -55,6 +55,46 @@ test('detects walking activities for step double-count prevention', () => {
   assert.equal(calc.isWalkingActivity('Cycling'), false);
 });
 
+test('includes step calories in renderer-style activity burn totals', () => {
+  const totals = calc.activityBurnTotals([], {
+    steps: 10000,
+    weightPounds: 220,
+    heightFt: 6,
+    heightIn: 0
+  });
+
+  assert.equal(Number(totals.stepBurn.toFixed(1)), 547.2);
+  assert.equal(totals.stepBurn > 0, true);
+  assert.equal(totals.activityBurn, totals.stepBurn);
+});
+
+test('prevents walking double count while keeping non-walking activity', () => {
+  const totals = calc.activityBurnTotals([
+    { name: 'Moderate walking', kind: 'activity', duration: 30, calories: 150 },
+    { name: 'Cycling', kind: 'activity', duration: 30, calories: 300 }
+  ], {
+    steps: 10000,
+    weightPounds: 220,
+    heightFt: 6,
+    heightIn: 0
+  });
+
+  assert.equal(Number(totals.activityBurn.toFixed(1)), 847.2);
+  assert.equal(totals.activityMinutes, 30);
+});
+
+test('renderer-style TDEE includes step calories', () => {
+  const bmr = 1800;
+  const totals = calc.activityBurnTotals([], {
+    steps: 10000,
+    weightPounds: 220,
+    heightFt: 6,
+    heightIn: 0
+  });
+
+  assert.equal(Number((bmr + totals.activityBurn).toFixed(1)), 2347.2);
+});
+
 test('calculates exercise pounds for bilateral, single-side, bodyweight, and timed modes', () => {
   assert.equal(calc.exercisePounds({ mode: 'bilateral', sets: 3, reps: 10, weight: 100 }, 200), 3000);
   assert.equal(calc.exercisePounds({ mode: 'single', sets: 3, reps: 10, weight: 25 }, 200), 1500);

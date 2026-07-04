@@ -312,7 +312,7 @@ function createBaselineSchema() {
       calories REAL,
       notes TEXT,
       kind TEXT DEFAULT 'activity',
-      source_session_id REAL,
+      source_session_id INTEGER,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -381,7 +381,7 @@ function createBaselineSchema() {
     );
   `);
 
-  ensureColumn('activities', 'source_session_id', 'REAL');
+  ensureColumn('activities', 'source_session_id', 'INTEGER');
   ensureColumn('profile', 'ui_scale', "TEXT DEFAULT 'normal'");
 
   db.prepare(`

@@ -15,7 +15,7 @@ const {
   a1cFlag,
   metCalories: calculateMetCalories,
   stepCalories: calculateStepCalories,
-  isWalkingActivity,
+  activityBurnTotals,
   workoutMet,
   workoutCalorieEstimate: calculateWorkoutCalories,
   exercisePounds: calculateExercisePounds,
@@ -133,12 +133,14 @@ function bmr() {
 
 function dailyBurn(date = today()) {
   const steps = latestSteps(date);
-  const stepBurn = stepCalories(steps?.steps || 0);
-  const hasStepCalories = n(steps?.steps) > 0 && n(stepBurn) > 0;
-  const activityBurn = todayRows('activities', date)
-    .filter((row) => row.kind !== 'workout')
-    .filter((row) => !(hasStepCalories && isWalkingActivity(row.name)))
-    .reduce((sum, row) => sum + n(row.calories), stepBurn);
+  const activityTotals = activityBurnTotals(todayRows('activities', date), {
+    steps: steps?.steps || 0,
+    weightPounds: profileWeight(),
+    heightFt: state.profile?.height_ft,
+    heightIn: state.profile?.height_in
+  });
+  const stepBurn = activityTotals.stepBurn;
+  const activityBurn = activityTotals.activityBurn;
   const workoutActivityBurn = todayRows('activities', date).filter((row) => row.kind === 'workout').reduce((sum, row) => sum + n(row.calories), 0);
   const unlinkedWorkoutBurn = (state.workout_sessions || [])
     .filter((session) => session.date === date && !workoutActivityForSession(session.id))
