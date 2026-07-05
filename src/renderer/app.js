@@ -44,6 +44,7 @@ let selectedActivityId = null;
 let editingActivityId = null;
 let editingLabResultId = null;
 let editingStepLogId = null;
+let activityHistoryOrder = 'newest';
 
 boot();
 
@@ -328,12 +329,14 @@ function activity() {
         ${panel(editingStepLogId ? 'Edit daily steps' : 'Daily steps', `${stepBurnNote()}${stepForm((state.step_log || []).find((row) => row.id === editingStepLogId) || todaysSteps)}`)}
         ${panel(editingActivity ? 'Edit activity' : 'Log activity', activityForm(editingActivity))}
       </div>
+      ${activityHistorySortControl()}
       ${panel('Step history', stepHistoryTable())}
       ${panel('Activity history', activityHistoryTable(rows))}
     </div>
   `);
   bindStepForm();
   bindActivityForm();
+  bindActivityHistorySort();
   bindActivityActions();
   bindDeletes();
 }
@@ -1028,6 +1031,13 @@ function bindStepForm() {
   });
 }
 
+function bindActivityHistorySort() {
+  document.getElementById('activityHistoryOrder')?.addEventListener('change', (event) => {
+    activityHistoryOrder = event.target.value === 'oldest' ? 'oldest' : 'newest';
+    renderPage('activity');
+  });
+}
+
 function bindActivityActions() {
   document.querySelectorAll('[data-select-activity]').forEach((button) => {
     button.addEventListener('click', () => {
@@ -1311,13 +1321,34 @@ function activityHistoryTable(rows) {
 }
 
 function stepHistoryTable() {
-  return table(['Date', 'Steps', 'Estimated calories', 'Notes', 'Actions'], (state.step_log || []).map((row) => [
+  return table(['Date', 'Steps', 'Estimated calories', 'Actions'], sortActivityHistoryRows(state.step_log || []).map((row) => [
     row.date,
     fmt(row.steps),
     fmt(stepCalories(row.steps)),
-    row.notes || '',
     raw(`<div class="actions"><button class="mini-button" data-edit-steps="${attr(row.id)}" type="button">Edit</button>${del('step_log', row.id).html}</div>`)
   ]));
+}
+
+function activityHistorySortControl() {
+  return `
+    <div class="subpanel">
+      <label>Date order
+        <select id="activityHistoryOrder">
+          <option value="newest" ${activityHistoryOrder === 'newest' ? 'selected' : ''}>Newest first</option>
+          <option value="oldest" ${activityHistoryOrder === 'oldest' ? 'selected' : ''}>Oldest first</option>
+        </select>
+      </label>
+    </div>
+  `;
+}
+
+function sortActivityHistoryRows(rows) {
+  return [...rows].sort((a, b) => {
+    const dateCompare = String(a.date || '').localeCompare(String(b.date || ''));
+    const idCompare = String(a.id || '').localeCompare(String(b.id || ''), undefined, { numeric: true });
+    const result = dateCompare || idCompare;
+    return activityHistoryOrder === 'oldest' ? result : -result;
+  });
 }
 
 function activityDisplayRows() {
@@ -1339,10 +1370,7 @@ function activityDisplayRows() {
         synthetic: true
       };
     });
-  return [...realRows, ...syntheticWorkoutRows].sort((a, b) => {
-    if (a.kind !== b.kind) return a.kind === 'workout' ? -1 : 1;
-    return String(b.date || '').localeCompare(String(a.date || '')) || String(b.id).localeCompare(String(a.id));
-  });
+  return sortActivityHistoryRows([...realRows, ...syntheticWorkoutRows]);
 }
 
 function activityActions(row) {

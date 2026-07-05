@@ -104,6 +104,10 @@ npm run build
 
 ## Changelog
 
+### v1.1.28
+
+- Removed step notes from the Activity & Burn history table and added newest/oldest date ordering for step and activity history.
+
 ### v1.1.27
 
 - Made renderer step-calorie/TDEE calculation pass weight and height explicitly and added regression coverage for step-inclusive burn totals.
