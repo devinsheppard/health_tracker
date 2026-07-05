@@ -64,7 +64,7 @@ const validators = {
   },
   food_log: (row, partial = false) => {
     dateField(row, 'date', partial);
-    enumField(row, 'meal_type', ['breakfast', 'lunch', 'dinner', 'snack'], partial);
+    enumField(row, 'meal_type', ['breakfast', 'lunch', 'dinner', 'snack', 'drink'], partial);
     numberField(row, 'net_carbs', { min: 0, max: 1000 });
     numberField(row, 'protein', { min: 0, max: 1000 });
     numberField(row, 'fat', { min: 0, max: 1000 });

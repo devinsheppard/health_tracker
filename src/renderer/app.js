@@ -487,7 +487,7 @@ function glucoseForm() {
 function foodForm() {
   return `<form id="foodForm">${fields([
     ['date', 'Date', 'date', today()],
-    ['meal_type', 'Meal type', 'select', 'breakfast', ['breakfast', 'lunch', 'dinner', 'snack']],
+    ['meal_type', 'Meal type', 'select', 'breakfast', ['breakfast', 'lunch', 'dinner', 'snack', 'drink']],
     ['description', 'Description', 'text'],
     ['net_carbs', 'Net carbs (g)', 'number'],
     ['protein', 'Protein (g)', 'number'],

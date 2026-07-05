@@ -104,6 +104,10 @@ npm run build
 
 ## Changelog
 
+### v1.1.29
+
+- Added `drink` as a Food & Macros meal type and allowed it through food log validation.
+
 ### v1.1.28
 
 - Removed step notes from the Activity & Burn history table and added newest/oldest date ordering for step and activity history.
