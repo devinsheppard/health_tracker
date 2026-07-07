@@ -31,7 +31,7 @@ Recommended habit: make a database backup before installing a new version, befor
 ## Features
 
 - Profile, goals, diet type, protein target, A1C goal, theme, and text scaling
-- Daily ledger summaries for weight, glucose, food totals, activity, workouts, sleep, labs, and notes
+- Daily ledger summaries for weight, glucose, blood pressure, heart rate, food totals, activity, workouts, sleep, labs, and notes
 - BMR and TDEE calculations using Katch-McArdle and MET-based activity burn
 - Food, calorie, net carb, protein, and fat logging
 - Blood glucose logging with context-specific thresholds and estimated A1C
@@ -103,6 +103,10 @@ npm run build
 ```
 
 ## Changelog
+
+### v1.1.30
+
+- Added a Blood Pressure section with systolic, diastolic, heart rate, position, notes, validation, JSON import/export, and daily ledger averages.
 
 ### v1.1.29
 

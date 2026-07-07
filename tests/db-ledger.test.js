@@ -39,6 +39,24 @@ test('maintains one daily ledger row with health totals for each date', () => {
     value: 140,
     notes: ''
   });
+  db.addRow('blood_pressure_readings', {
+    date: '2026-07-01',
+    time: '08:00',
+    systolic: 128,
+    diastolic: 82,
+    heart_rate: 72,
+    position: 'seated',
+    notes: 'morning BP'
+  });
+  db.addRow('blood_pressure_readings', {
+    date: '2026-07-01',
+    time: '21:00',
+    systolic: 122,
+    diastolic: 78,
+    heart_rate: 68,
+    position: 'seated',
+    notes: ''
+  });
   db.addRow('food_log', {
     date: '2026-07-01',
     meal_type: 'breakfast',
@@ -125,6 +143,10 @@ test('maintains one daily ledger row with health totals for each date', () => {
   assert.equal(row.glucose_avg, 120);
   assert.equal(row.fasting_glucose_count, 1);
   assert.equal(row.fasting_glucose_avg, 100);
+  assert.equal(row.bp_count, 2);
+  assert.equal(row.systolic_avg, 125);
+  assert.equal(row.diastolic_avg, 80);
+  assert.equal(row.heart_rate_avg, 70);
   assert.equal(row.food_calories, 850);
   assert.equal(row.net_carbs, 3);
   assert.equal(row.protein, 90);
@@ -143,6 +165,7 @@ test('maintains one daily ledger row with health totals for each date', () => {
   assert.equal(row.morning_glucose, 102);
   assert.equal(row.lab_count, 1);
   assert.match(row.notes, /Glucose: morning reading/);
+  assert.match(row.notes, /Blood pressure: morning BP/);
   assert.match(row.notes, /Workout: upper body/);
   assert.match(row.notes, /Activity: outside walk/);
   assert.match(row.notes, /Steps: watch total/);

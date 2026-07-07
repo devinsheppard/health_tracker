@@ -37,12 +37,14 @@ test('initializes a new database at the current schema version', () => {
       { version: 5, name: 'custom_lab_test_catalog' },
       { version: 6, name: 'lab_result_catalog_metadata' },
       { version: 7, name: 'daily_step_log' },
-      { version: 8, name: 'daily_ledger_step_totals' }
+      { version: 8, name: 'daily_ledger_step_totals' },
+      { version: 9, name: 'blood_pressure_heart_rate' }
     ]);
     assert.equal(raw.prepare('SELECT COUNT(*) AS count FROM profile').get().count, 1);
     assert.equal(raw.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name = 'workout_templates'").get().count, 1);
     assert.equal(raw.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name = 'lab_test_catalog_custom'").get().count, 1);
     assert.equal(raw.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name = 'step_log'").get().count, 1);
+    assert.equal(raw.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name = 'blood_pressure_readings'").get().count, 1);
     const activityColumns = raw.prepare('PRAGMA table_info(activities)').all();
     assert.equal(activityColumns.find((column) => column.name === 'source_session_id').type, 'INTEGER');
     const labColumns = raw.prepare('PRAGMA table_info(lab_results)').all().map((column) => column.name);
@@ -53,6 +55,10 @@ test('initializes a new database at the current schema version', () => {
     const ledgerColumns = raw.prepare('PRAGMA table_info(daily_ledger)').all().map((column) => column.name);
     assert.equal(ledgerColumns.includes('step_count'), true);
     assert.equal(ledgerColumns.includes('step_calories'), true);
+    assert.equal(ledgerColumns.includes('bp_count'), true);
+    assert.equal(ledgerColumns.includes('systolic_avg'), true);
+    assert.equal(ledgerColumns.includes('diastolic_avg'), true);
+    assert.equal(ledgerColumns.includes('heart_rate_avg'), true);
     assert.equal(raw.prepare('SELECT ui_scale FROM profile WHERE id = 1').get().ui_scale, 'normal');
   } finally {
     raw.close();

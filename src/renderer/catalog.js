@@ -10,6 +10,7 @@
   const pages = [
     ['dashboard', 'Dashboard'],
     ['glucose', 'Glucose'],
+    ['bloodPressure', 'Blood Pressure'],
     ['food', 'Food & Macros'],
     ['workouts', 'Workouts'],
     ['activity', 'Activity & Burn'],

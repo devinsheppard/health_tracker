@@ -41,6 +41,7 @@ test('accepts valid profile and health rows', () => {
   });
 
   db.addRow('glucose_readings', { date: '2026-07-01', time: '07:15', context: 'fasting morning', value: 110, notes: '' });
+  db.addRow('blood_pressure_readings', { date: '2026-07-01', time: '07:20', systolic: 124, diastolic: 78, heart_rate: 70, position: 'seated', notes: '' });
   db.addRow('food_log', { date: '2026-07-01', meal_type: 'breakfast', description: 'Eggs', net_carbs: 2, protein: 30, fat: 22, calories: 330 });
   db.addRow('weight_log', { date: '2026-07-01', weight: 240, body_fat: 25, lean_body_mass: 180, notes: '' });
   db.addRow('sleep_log', { date: '2026-07-01', hours: 7.5, quality: 'good', morning_glucose: 108, notes: '' });
@@ -61,6 +62,8 @@ test('accepts valid profile and health rows', () => {
   assert.equal(data.profile.ui_scale, 'large');
   assert.equal(data.lab_results[0].unit, '%');
   assert.equal(data.lab_results[0].catalog_source, 'built-in');
+  assert.equal(data.blood_pressure_readings[0].systolic, 124);
+  assert.equal(data.daily_ledger[0].bp_count, 1);
   assert.equal(data.daily_ledger.length, 1);
   assert.equal(data.daily_ledger[0].food_calories, 330);
 });
@@ -209,6 +212,24 @@ test('rejects invalid health rows without saving them', () => {
     fat: 10,
     calories: 200
   }), /Validation failed: net_carbs/);
+  assert.throws(() => db.addRow('blood_pressure_readings', {
+    date: '2026-07-01',
+    time: '07:20',
+    systolic: 400,
+    diastolic: 80,
+    heart_rate: 70,
+    position: 'seated',
+    notes: ''
+  }), /Validation failed: systolic/);
+  assert.throws(() => db.addRow('blood_pressure_readings', {
+    date: '2026-07-01',
+    time: '07:20',
+    systolic: 120,
+    diastolic: 80,
+    heart_rate: 70,
+    position: 'upside down',
+    notes: ''
+  }), /Validation failed: position/);
   assert.throws(() => db.addRow('sleep_log', {
     date: '2026-07-01',
     hours: 30,
@@ -239,6 +260,7 @@ test('rejects invalid health rows without saving them', () => {
   const data = db.getAllData();
   assert.equal(data.glucose_readings.length, 0);
   assert.equal(data.food_log.length, 0);
+  assert.equal(data.blood_pressure_readings.length, 0);
   assert.equal(data.sleep_log.length, 0);
   assert.equal(data.step_log.length, 0);
   assert.equal(data.lab_test_catalog_custom.length, 0);

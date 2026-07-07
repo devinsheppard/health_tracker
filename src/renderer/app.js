@@ -87,7 +87,7 @@ function renderPage(page) {
   charts = [];
   document.querySelectorAll('.nav-button').forEach((button) => button.classList.toggle('active', button.dataset.page === page));
   document.getElementById('pageTitle').textContent = pages.find(([id]) => id === page)?.[1] || 'Dashboard';
-  const renderers = { dashboard, glucose, food, workouts, activity, weight, sleep, meds, labs, settings };
+  const renderers = { dashboard, glucose, bloodPressure, food, workouts, activity, weight, sleep, meds, labs, settings };
   renderers[page]();
 }
 
@@ -119,6 +119,11 @@ function profileWeight() {
 
 function latestWeight() {
   return [...(state.weight_log || [])].sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id)[0];
+}
+
+function average(values) {
+  const clean = values.map(Number).filter(Number.isFinite);
+  return clean.length ? clean.reduce((sum, value) => sum + value, 0) / clean.length : 0;
 }
 
 function lbm(profile = state.profile) {
@@ -233,6 +238,37 @@ function glucose() {
     </div>
   `);
   bindForm('glucoseForm', 'glucose_readings');
+  bindDeletes();
+}
+
+function bloodPressure() {
+  const rows = state.blood_pressure_readings || [];
+  const latest = rows[0];
+  const todays = todayRows('blood_pressure_readings');
+  const systolicAvg = average(todays.map((row) => row.systolic));
+  const diastolicAvg = average(todays.map((row) => row.diastolic));
+  const heartRateAvg = average(todays.map((row) => row.heart_rate));
+  setContent(`
+    <div class="grid">
+      ${metrics([
+        ['Latest BP', latest ? `${fmt(latest.systolic)}/${fmt(latest.diastolic)}` : '--', latest ? `${latest.date} ${latest.time || ''}` : 'No readings yet'],
+        ['Heart rate', latest?.heart_rate ? `${fmt(latest.heart_rate)} bpm` : '--', latest?.position || 'Most recent reading'],
+        ['Today average', todays.length ? `${fmt(systolicAvg)}/${fmt(diastolicAvg)}` : '--', `${todays.length} readings today`],
+        ['Today HR average', heartRateAvg ? `${fmt(heartRateAvg)} bpm` : '--', 'Average heart rate today']
+      ])}
+      ${panel('Add blood pressure reading', bloodPressureForm())}
+      ${panel('Last 30 readings', table(['Date', 'Time', 'Blood pressure', 'Heart rate', 'Position', 'Notes', ''], rows.slice(0, 30).map((r) => [
+        r.date,
+        r.time || '',
+        `${fmt(r.systolic)}/${fmt(r.diastolic)}`,
+        r.heart_rate ? `${fmt(r.heart_rate)} bpm` : '',
+        r.position || '',
+        r.notes || '',
+        del('blood_pressure_readings', r.id)
+      ])))}
+    </div>
+  `);
+  bindForm('bloodPressureForm', 'blood_pressure_readings');
   bindDeletes();
 }
 
@@ -481,6 +517,17 @@ function glucoseForm() {
     ['time', 'Time', 'time', nowTime()],
     ['context', 'Context', 'select', 'fasting morning', ['fasting morning', 'before meal', '1hr post-meal', '2hr post-meal', 'bedtime', 'post-workout', 'random']],
     ['value', 'mg/dL', 'number']
+  ])}<label>Notes<textarea name="notes"></textarea></label><button class="primary-button">Save reading</button></form>`;
+}
+
+function bloodPressureForm() {
+  return `<form id="bloodPressureForm">${fields([
+    ['date', 'Date', 'date', today()],
+    ['time', 'Time', 'time', nowTime()],
+    ['systolic', 'Systolic', 'number'],
+    ['diastolic', 'Diastolic', 'number'],
+    ['heart_rate', 'Heart rate', 'number'],
+    ['position', 'Position', 'select', 'seated', ['seated', 'standing', 'lying', 'after activity']]
   ])}<label>Notes<textarea name="notes"></textarea></label><button class="primary-button">Save reading</button></form>`;
 }
 

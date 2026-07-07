@@ -6,10 +6,11 @@ const calculations = require('./shared/calculations');
 let db;
 let dbPath;
 let dataDir;
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 
 const allowedTables = new Set([
   'glucose_readings',
+  'blood_pressure_readings',
   'food_log',
   'workout_sessions',
   'workout_exercises',
@@ -25,6 +26,7 @@ const allowedTables = new Set([
 
 const tableColumns = {
   glucose_readings: ['date', 'time', 'context', 'value', 'notes'],
+  blood_pressure_readings: ['date', 'time', 'systolic', 'diastolic', 'heart_rate', 'position', 'notes'],
   food_log: ['date', 'meal_type', 'description', 'net_carbs', 'protein', 'fat', 'calories'],
   workout_sessions: ['date', 'pre_glucose', 'post_glucose', 'duration', 'effort', 'notes'],
   workout_exercises: ['session_id', 'muscle_group', 'exercise', 'sets', 'reps', 'weight', 'seconds', 'mode', 'pounds'],
@@ -40,6 +42,7 @@ const tableColumns = {
 
 const sourceTablesWithDates = [
   'glucose_readings',
+  'blood_pressure_readings',
   'food_log',
   'workout_sessions',
   'activities',
@@ -52,7 +55,8 @@ const sourceTablesWithDates = [
 const optionalImportTables = new Set([
   'workout_templates',
   'lab_test_catalog_custom',
-  'step_log'
+  'step_log',
+  'blood_pressure_readings'
 ]);
 
 const validators = {
@@ -61,6 +65,15 @@ const validators = {
     enumField(row, 'context', ['fasting morning', 'before meal', '1hr post-meal', '2hr post-meal', 'bedtime', 'post-workout', 'random'], partial);
     numberField(row, 'value', { min: 20, max: 600, required: !partial });
     timeField(row, 'time', true);
+  },
+  blood_pressure_readings: (row, partial = false) => {
+    dateField(row, 'date', partial);
+    timeField(row, 'time', true);
+    integerField(row, 'systolic', { min: 50, max: 300, required: !partial });
+    integerField(row, 'diastolic', { min: 30, max: 200, required: !partial });
+    integerField(row, 'heart_rate', { min: 20, max: 250 });
+    enumField(row, 'position', ['seated', 'standing', 'lying', 'after activity'], true);
+    textField(row, 'notes', { max: 2000 });
   },
   food_log: (row, partial = false) => {
     dateField(row, 'date', partial);
@@ -229,6 +242,11 @@ const migrations = [
     version: 8,
     name: 'daily_ledger_step_totals',
     up: createDailyLedgerStepTotals
+  },
+  {
+    version: 9,
+    name: 'blood_pressure_heart_rate',
+    up: createBloodPressureSchema
   }
 ];
 
@@ -261,6 +279,18 @@ function createBaselineSchema() {
       time TEXT,
       context TEXT,
       value REAL,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS blood_pressure_readings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL,
+      time TEXT,
+      systolic INTEGER,
+      diastolic INTEGER,
+      heart_rate INTEGER,
+      position TEXT,
       notes TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
@@ -401,6 +431,10 @@ function createDailyLedgerSchema() {
       glucose_avg REAL DEFAULT 0,
       fasting_glucose_count INTEGER DEFAULT 0,
       fasting_glucose_avg REAL DEFAULT 0,
+      bp_count INTEGER DEFAULT 0,
+      systolic_avg REAL DEFAULT 0,
+      diastolic_avg REAL DEFAULT 0,
+      heart_rate_avg REAL DEFAULT 0,
       food_calories REAL DEFAULT 0,
       net_carbs REAL DEFAULT 0,
       protein REAL DEFAULT 0,
@@ -485,6 +519,27 @@ function createDailyLedgerStepTotals() {
   rebuildDailyLedger();
 }
 
+function createBloodPressureSchema() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS blood_pressure_readings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL,
+      time TEXT,
+      systolic INTEGER,
+      diastolic INTEGER,
+      heart_rate INTEGER,
+      position TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+  ensureColumn('daily_ledger', 'bp_count', 'INTEGER DEFAULT 0');
+  ensureColumn('daily_ledger', 'systolic_avg', 'REAL DEFAULT 0');
+  ensureColumn('daily_ledger', 'diastolic_avg', 'REAL DEFAULT 0');
+  ensureColumn('daily_ledger', 'heart_rate_avg', 'REAL DEFAULT 0');
+  rebuildDailyLedger();
+}
+
 function getSchemaVersion() {
   return Number(db.pragma('user_version', { simple: true })) || 0;
 }
@@ -502,6 +557,7 @@ function getAllData() {
     profile: one('SELECT * FROM profile WHERE id = 1'),
     daily_ledger: all('SELECT * FROM daily_ledger ORDER BY date DESC'),
     glucose_readings: all('SELECT * FROM glucose_readings ORDER BY date DESC, time DESC, id DESC'),
+    blood_pressure_readings: all('SELECT * FROM blood_pressure_readings ORDER BY date DESC, time DESC, id DESC'),
     food_log: all('SELECT * FROM food_log ORDER BY date DESC, id DESC'),
     workout_sessions: all('SELECT * FROM workout_sessions ORDER BY date DESC, id DESC'),
     workout_exercises: all('SELECT * FROM workout_exercises ORDER BY id DESC'),
@@ -579,6 +635,10 @@ function ensureColumn(table, column, definition) {
   }
 }
 
+function tableExists(table) {
+  return Boolean(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").get(table));
+}
+
 function clearAll() {
   const tx = db.transaction(() => {
     for (const table of [...allowedTables]) {
@@ -637,17 +697,21 @@ function importFullJson(payload) {
 }
 
 function rebuildDailyLedger() {
+  if (!tableExists('daily_ledger')) return;
+  ensureDailyLedgerMetricColumns();
   const dates = ledgerDates();
   const insert = db.prepare(`
     INSERT INTO daily_ledger (
       date, weight, body_fat, lean_body_mass, glucose_count, glucose_avg,
-      fasting_glucose_count, fasting_glucose_avg, food_calories, net_carbs,
+      fasting_glucose_count, fasting_glucose_avg, bp_count, systolic_avg,
+      diastolic_avg, heart_rate_avg, food_calories, net_carbs,
       protein, fat, step_count, step_calories, activity_calories, activity_minutes, workout_calories,
       workout_minutes, workout_sessions, workout_volume, lifetime_lifting_total,
       sleep_hours, sleep_quality, morning_glucose, lab_count, notes, updated_at
     ) VALUES (
       @date, @weight, @body_fat, @lean_body_mass, @glucose_count, @glucose_avg,
-      @fasting_glucose_count, @fasting_glucose_avg, @food_calories, @net_carbs,
+      @fasting_glucose_count, @fasting_glucose_avg, @bp_count, @systolic_avg,
+      @diastolic_avg, @heart_rate_avg, @food_calories, @net_carbs,
       @protein, @fat, @step_count, @step_calories, @activity_calories, @activity_minutes, @workout_calories,
       @workout_minutes, @workout_sessions, @workout_volume, @lifetime_lifting_total,
       @sleep_hours, @sleep_quality, @morning_glucose, @lab_count, @notes, @updated_at
@@ -661,9 +725,19 @@ function rebuildDailyLedger() {
   else db.transaction(run)();
 }
 
+function ensureDailyLedgerMetricColumns() {
+  ensureColumn('daily_ledger', 'step_count', 'INTEGER DEFAULT 0');
+  ensureColumn('daily_ledger', 'step_calories', 'REAL DEFAULT 0');
+  ensureColumn('daily_ledger', 'bp_count', 'INTEGER DEFAULT 0');
+  ensureColumn('daily_ledger', 'systolic_avg', 'REAL DEFAULT 0');
+  ensureColumn('daily_ledger', 'diastolic_avg', 'REAL DEFAULT 0');
+  ensureColumn('daily_ledger', 'heart_rate_avg', 'REAL DEFAULT 0');
+}
+
 function ledgerDates() {
   const dates = new Set();
   for (const table of sourceTablesWithDates) {
+    if (!tableExists(table)) continue;
     for (const row of all(`SELECT DISTINCT date FROM ${table} WHERE date IS NOT NULL AND date != ''`)) {
       dates.add(row.date);
     }
@@ -689,18 +763,27 @@ function dailyLedgerRow(date) {
     FROM glucose_readings
     WHERE date = ? AND value IS NOT NULL AND context = 'fasting morning'
   `, [date]) || {};
+  const bloodPressure = tableExists('blood_pressure_readings') ? one(`
+    SELECT
+      COUNT(*) AS count,
+      AVG(systolic) AS systolic,
+      AVG(diastolic) AS diastolic,
+      AVG(heart_rate) AS heart_rate
+    FROM blood_pressure_readings
+    WHERE date = ? AND systolic IS NOT NULL AND diastolic IS NOT NULL
+  `, [date]) || {} : {};
   const food = one(`
     SELECT SUM(calories) AS calories, SUM(net_carbs) AS net_carbs, SUM(protein) AS protein, SUM(fat) AS fat
     FROM food_log
     WHERE date = ?
   `, [date]) || {};
-  const step = one(`
+  const step = tableExists('step_log') ? one(`
     SELECT steps
     FROM step_log
     WHERE date = ?
     ORDER BY id DESC
     LIMIT 1
-  `, [date]) || {};
+  `, [date]) || {} : {};
   const profile = one('SELECT current_weight, height_ft, height_in FROM profile WHERE id = 1') || {};
   const weightForSteps = clean(weight.weight) || clean(profile.current_weight);
   const stepCalories = calculations.stepCalories(step.steps, weightForSteps, profile.height_ft, profile.height_in);
@@ -751,6 +834,10 @@ function dailyLedgerRow(date) {
     glucose_avg: n(glucose.avg),
     fasting_glucose_count: n(fasting.count),
     fasting_glucose_avg: n(fasting.avg),
+    bp_count: n(bloodPressure.count),
+    systolic_avg: n(bloodPressure.systolic),
+    diastolic_avg: n(bloodPressure.diastolic),
+    heart_rate_avg: n(bloodPressure.heart_rate),
     food_calories: n(food.calories),
     net_carbs: n(food.net_carbs),
     protein: n(food.protein),
@@ -776,9 +863,10 @@ function dailyLedgerRow(date) {
 function ledgerNotes(date) {
   const notes = [];
   collectNotes(notes, 'Glucose', "SELECT notes FROM glucose_readings WHERE date = ? AND notes IS NOT NULL AND notes != '' ORDER BY time, id", date);
+  if (tableExists('blood_pressure_readings')) collectNotes(notes, 'Blood pressure', "SELECT notes FROM blood_pressure_readings WHERE date = ? AND notes IS NOT NULL AND notes != '' ORDER BY time, id", date);
   collectNotes(notes, 'Workout', "SELECT notes FROM workout_sessions WHERE date = ? AND notes IS NOT NULL AND notes != '' ORDER BY id", date);
   collectNotes(notes, 'Activity', "SELECT notes FROM activities WHERE date = ? AND notes IS NOT NULL AND notes != '' ORDER BY id", date);
-  collectNotes(notes, 'Steps', "SELECT notes FROM step_log WHERE date = ? AND notes IS NOT NULL AND notes != '' ORDER BY id", date);
+  if (tableExists('step_log')) collectNotes(notes, 'Steps', "SELECT notes FROM step_log WHERE date = ? AND notes IS NOT NULL AND notes != '' ORDER BY id", date);
   collectNotes(notes, 'Weight', "SELECT notes FROM weight_log WHERE date = ? AND notes IS NOT NULL AND notes != '' ORDER BY id", date);
   collectNotes(notes, 'Sleep', "SELECT notes FROM sleep_log WHERE date = ? AND notes IS NOT NULL AND notes != '' ORDER BY id", date);
   collectNotes(notes, 'Lab', "SELECT notes FROM lab_results WHERE date = ? AND notes IS NOT NULL AND notes != '' ORDER BY id", date);
