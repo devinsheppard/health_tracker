@@ -20,3 +20,9 @@ test('keeps Barbell curls as one bilateral biceps entry', () => {
 
   assert.deepEqual(biceps, [['Barbell curls', 'bilateral']]);
 });
+
+test('keeps Cable Kong Curl as one bilateral biceps entry', () => {
+  const biceps = catalog.exerciseGroups.Biceps.filter(([name]) => name === 'Cable Kong Curl');
+
+  assert.deepEqual(biceps, [['Cable Kong Curl', 'bilateral']]);
+});

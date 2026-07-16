@@ -128,3 +128,20 @@ test('summarizes lifetime lifting totals by week and month', () => {
     month: 1
   });
 });
+
+test('calculates Cable Kong Curl through shared bilateral workout logic', () => {
+  const exercise = { exercise: 'Cable Kong Curl', mode: 'bilateral', sets: 2, reps: 10, weight: 40 };
+  const pounds = calc.exercisePounds(exercise, 220);
+  const withPounds = { ...exercise, pounds };
+  const calories = calc.workoutCalorieEstimate({ effort: 'moderate', duration: 30 }, [withPounds], 220, 2100);
+  const challenge = calc.lifetimePounds([withPounds], [{ date: '2026-07-16' }], '2026-07-16');
+
+  assert.equal(pounds, 800);
+  assert.equal(pounds, calc.exercisePounds({ mode: 'bilateral', sets: 2, reps: 10, weight: 40 }, 220));
+  assert.notEqual(pounds, 1600);
+  assert.equal(calories.pounds, 800);
+  assert.equal(calories.duration, 30);
+  assert.equal(challenge.total, 800);
+  assert.equal(challenge.week, 1);
+  assert.equal(challenge.month, 1);
+});

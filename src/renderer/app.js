@@ -592,6 +592,7 @@ function exerciseForm(sessionId, row = null) {
       ['weight', 'Weight (lbs)', 'number', row?.weight || ''],
       ['seconds', 'Seconds for timed exercises', 'number', row?.seconds || '']
     ])}
+    <div id="exerciseConventionNote">${exerciseConventionNote(row?.exercise || exerciseGroups[group][0][0])}</div>
     <div class="actions">
       <button class="primary-button">${row ? 'Update exercise' : 'Save exercise'}</button>
       ${row ? '<button class="ghost-button" data-cancel-exercise-edit type="button">Cancel edit</button>' : ''}
@@ -602,14 +603,20 @@ function exerciseForm(sessionId, row = null) {
 function draftExerciseFields() {
   const groups = Object.keys(exerciseGroups);
   const group = workoutSessionDraft.ex_muscle_group || groups[0];
-  return fields([
+  const exercise = workoutSessionDraft.ex_exercise || exerciseGroups[group][0][0];
+  return `${fields([
     ['ex_muscle_group', 'Muscle group', 'select', group, groups],
-    ['ex_exercise', 'Exercise', 'select', workoutSessionDraft.ex_exercise || exerciseGroups[group][0][0], exerciseGroups[group].map((x) => x[0])],
+    ['ex_exercise', 'Exercise', 'select', exercise, exerciseGroups[group].map((x) => x[0])],
     ['ex_sets', 'Sets', 'number', workoutSessionDraft.ex_sets || ''],
     ['ex_reps', 'Reps', 'number', workoutSessionDraft.ex_reps || ''],
     ['ex_weight', 'Weight (lbs)', 'number', workoutSessionDraft.ex_weight || ''],
     ['ex_seconds', 'Seconds for timed exercises', 'number', workoutSessionDraft.ex_seconds || '']
-  ]);
+  ])}<div id="draftExerciseConventionNote">${exerciseConventionNote(exercise)}</div>`;
+}
+
+function exerciseConventionNote(exercise) {
+  if (exercise !== 'Cable Kong Curl') return '';
+  return '<div class="alert">Cable Kong Curl: count one rep as one curl by one arm. Enter the resistance shown on one cable stack/handle. The static extended-arm hold is not a separate rep. Volume uses the standard bilateral formula without left/right doubling.</div>';
 }
 
 function draftExerciseTable() {
@@ -868,6 +875,8 @@ function bindWorkoutSessionForm() {
   });
   exerciseSelect?.addEventListener('change', () => {
     workoutSessionDraft = formData(form);
+    const note = document.getElementById('draftExerciseConventionNote');
+    if (note) note.innerHTML = exerciseConventionNote(workoutSessionDraft.ex_exercise);
   });
   document.querySelector('[data-add-draft-exercise]')?.addEventListener('click', () => {
     workoutSessionDraft = formData(form);
@@ -970,6 +979,10 @@ function bindExerciseForm() {
   const exerciseSelect = form.elements.exercise;
   groupSelect.addEventListener('change', () => {
     exerciseSelect.innerHTML = exerciseGroups[groupSelect.value].map(([name]) => `<option>${esc(name)}</option>`).join('');
+    document.getElementById('exerciseConventionNote').innerHTML = exerciseConventionNote(exerciseSelect.value);
+  });
+  exerciseSelect.addEventListener('change', () => {
+    document.getElementById('exerciseConventionNote').innerHTML = exerciseConventionNote(exerciseSelect.value);
   });
   form.addEventListener('submit', async (event) => {
     event.preventDefault();

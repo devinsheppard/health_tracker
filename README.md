@@ -104,6 +104,10 @@ npm run build
 
 ## Changelog
 
+### v1.1.32
+
+- Added `Cable Kong Curl` to Biceps as an alternating bilateral cable movement with helper text for rep and resistance entry conventions.
+
 ### v1.1.31
 
 - Added `Barbell curls` to the Biceps workout exercise list as a bilateral barbell movement.

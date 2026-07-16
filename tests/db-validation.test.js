@@ -133,6 +133,40 @@ test('accepts valid workout templates', () => {
   assert.equal(JSON.parse(template.exercises).length, 2);
 });
 
+test('saves and reloads Cable Kong Curl workout entries without custom formulas', () => {
+  init();
+
+  const session = db.addRow('workout_sessions', {
+    date: '2026-07-16',
+    pre_glucose: null,
+    post_glucose: null,
+    duration: 45,
+    effort: 'moderate',
+    notes: 'biceps'
+  });
+  db.addRow('workout_exercises', {
+    session_id: session.id,
+    muscle_group: 'Biceps',
+    exercise: 'Cable Kong Curl',
+    sets: 2,
+    reps: 10,
+    weight: 40,
+    seconds: null,
+    mode: 'bilateral',
+    pounds: 800
+  });
+
+  const data = db.getAllData();
+  const exercise = data.workout_exercises[0];
+
+  assert.equal(exercise.exercise, 'Cable Kong Curl');
+  assert.equal(exercise.muscle_group, 'Biceps');
+  assert.equal(exercise.mode, 'bilateral');
+  assert.equal(exercise.pounds, 800);
+  assert.equal(data.daily_ledger[0].workout_volume, 800);
+  assert.equal(data.daily_ledger[0].lifetime_lifting_total, 800);
+});
+
 test('accepts valid custom lab catalog tests', () => {
   init();
 
