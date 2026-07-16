@@ -104,6 +104,10 @@ npm run build
 
 ## Changelog
 
+### v1.1.31
+
+- Added `Barbell curls` to the Biceps workout exercise list as a bilateral barbell movement.
+
 ### v1.1.30
 
 - Added a Blood Pressure section with systolic, diastolic, heart rate, position, notes, validation, JSON import/export, and daily ledger averages.
