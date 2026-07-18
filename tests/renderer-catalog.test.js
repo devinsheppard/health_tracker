@@ -26,3 +26,26 @@ test('keeps Cable Kong Curl as one bilateral biceps entry', () => {
 
   assert.deepEqual(biceps, [['Cable Kong Curl', 'bilateral']]);
 });
+
+test('keeps Behind-the-Body Cable Curl as one bilateral biceps entry with cable curls', () => {
+  const biceps = catalog.exerciseGroups.Biceps;
+  const matches = biceps.filter(([name]) => name === 'Behind-the-Body Cable Curl');
+  const cableKongIndex = biceps.findIndex(([name]) => name === 'Cable Kong Curl');
+  const behindBodyIndex = biceps.findIndex(([name]) => name === 'Behind-the-Body Cable Curl');
+  const pronatedIndex = biceps.findIndex(([name]) => name === 'Behind-the-Body Pronated Cable Curl');
+  const concentrationIndex = biceps.findIndex(([name]) => name === 'Concentration curls');
+
+  assert.deepEqual(matches, [['Behind-the-Body Cable Curl', 'bilateral']]);
+  assert.equal(behindBodyIndex, cableKongIndex + 1);
+  assert.equal(pronatedIndex, behindBodyIndex + 1);
+  assert.equal(pronatedIndex < concentrationIndex, true);
+});
+
+test('keeps Behind-the-Body Pronated Cable Curl distinct from the standard variation', () => {
+  const biceps = catalog.exerciseGroups.Biceps;
+  const standard = biceps.filter(([name]) => name === 'Behind-the-Body Cable Curl');
+  const pronated = biceps.filter(([name]) => name === 'Behind-the-Body Pronated Cable Curl');
+
+  assert.deepEqual(standard, [['Behind-the-Body Cable Curl', 'bilateral']]);
+  assert.deepEqual(pronated, [['Behind-the-Body Pronated Cable Curl', 'bilateral']]);
+});

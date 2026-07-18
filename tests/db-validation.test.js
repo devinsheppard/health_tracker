@@ -167,6 +167,74 @@ test('saves and reloads Cable Kong Curl workout entries without custom formulas'
   assert.equal(data.daily_ledger[0].lifetime_lifting_total, 800);
 });
 
+test('saves and reloads Behind-the-Body Cable Curl workout entries without custom formulas', () => {
+  init();
+
+  const session = db.addRow('workout_sessions', {
+    date: '2026-07-17',
+    pre_glucose: null,
+    post_glucose: null,
+    duration: 45,
+    effort: 'moderate',
+    notes: 'biceps'
+  });
+  db.addRow('workout_exercises', {
+    session_id: session.id,
+    muscle_group: 'Biceps',
+    exercise: 'Behind-the-Body Cable Curl',
+    sets: 3,
+    reps: 12,
+    weight: 35,
+    seconds: null,
+    mode: 'bilateral',
+    pounds: 1260
+  });
+
+  const data = db.getAllData();
+  const exercise = data.workout_exercises[0];
+
+  assert.equal(exercise.exercise, 'Behind-the-Body Cable Curl');
+  assert.equal(exercise.muscle_group, 'Biceps');
+  assert.equal(exercise.mode, 'bilateral');
+  assert.equal(exercise.pounds, 1260);
+  assert.equal(data.daily_ledger[0].workout_volume, 1260);
+  assert.equal(data.daily_ledger[0].lifetime_lifting_total, 1260);
+});
+
+test('saves and reloads Behind-the-Body Pronated Cable Curl workout entries without custom formulas', () => {
+  init();
+
+  const session = db.addRow('workout_sessions', {
+    date: '2026-07-17',
+    pre_glucose: null,
+    post_glucose: null,
+    duration: 45,
+    effort: 'moderate',
+    notes: 'pronated biceps'
+  });
+  db.addRow('workout_exercises', {
+    session_id: session.id,
+    muscle_group: 'Biceps',
+    exercise: 'Behind-the-Body Pronated Cable Curl',
+    sets: 3,
+    reps: 12,
+    weight: 35,
+    seconds: null,
+    mode: 'bilateral',
+    pounds: 1260
+  });
+
+  const data = db.getAllData();
+  const exercise = data.workout_exercises[0];
+
+  assert.equal(exercise.exercise, 'Behind-the-Body Pronated Cable Curl');
+  assert.equal(exercise.muscle_group, 'Biceps');
+  assert.equal(exercise.mode, 'bilateral');
+  assert.equal(exercise.pounds, 1260);
+  assert.equal(data.daily_ledger[0].workout_volume, 1260);
+  assert.equal(data.daily_ledger[0].lifetime_lifting_total, 1260);
+});
+
 test('accepts valid custom lab catalog tests', () => {
   init();
 

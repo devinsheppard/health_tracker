@@ -145,3 +145,35 @@ test('calculates Cable Kong Curl through shared bilateral workout logic', () => 
   assert.equal(challenge.week, 1);
   assert.equal(challenge.month, 1);
 });
+
+test('calculates Behind-the-Body Cable Curl through shared bilateral workout logic', () => {
+  const exercise = { exercise: 'Behind-the-Body Cable Curl', mode: 'bilateral', sets: 3, reps: 12, weight: 35 };
+  const pounds = calc.exercisePounds(exercise, 220);
+  const withPounds = { ...exercise, pounds };
+  const calories = calc.workoutCalorieEstimate({ effort: 'moderate', duration: 30 }, [withPounds], 220, 2100);
+  const challenge = calc.lifetimePounds([withPounds], [{ date: '2026-07-17' }], '2026-07-17');
+
+  assert.equal(pounds, 1260);
+  assert.equal(pounds, calc.exercisePounds({ mode: 'bilateral', sets: 3, reps: 12, weight: 35 }, 220));
+  assert.equal(calories.pounds, 1260);
+  assert.equal(calories.duration, 30);
+  assert.equal(challenge.total, 1260);
+  assert.equal(challenge.week, 1);
+  assert.equal(challenge.month, 1);
+});
+
+test('calculates Behind-the-Body Pronated Cable Curl through shared bilateral workout logic', () => {
+  const exercise = { exercise: 'Behind-the-Body Pronated Cable Curl', mode: 'bilateral', sets: 3, reps: 12, weight: 35 };
+  const pounds = calc.exercisePounds(exercise, 220);
+  const withPounds = { ...exercise, pounds };
+  const calories = calc.workoutCalorieEstimate({ effort: 'moderate', duration: 30 }, [withPounds], 220, 2100);
+  const challenge = calc.lifetimePounds([withPounds], [{ date: '2026-07-17' }], '2026-07-17');
+
+  assert.equal(pounds, 1260);
+  assert.equal(pounds, calc.exercisePounds({ mode: 'bilateral', sets: 3, reps: 12, weight: 35 }, 220));
+  assert.equal(calories.pounds, 1260);
+  assert.equal(calories.duration, 30);
+  assert.equal(challenge.total, 1260);
+  assert.equal(challenge.week, 1);
+  assert.equal(challenge.month, 1);
+});

@@ -102,7 +102,16 @@ Build the Windows NSIS installer:
 npm run build
 ```
 
+The installer version comes from `package.json` and `package-lock.json`. For a new release, update both package versions, add a changelog entry, run the checks, then run `npm run build`. Electron Builder writes the NSIS installer to `release/`; curated release artifacts can be copied to `dist/release/<version>/` with release notes, checksums, and an artifact manifest. Developer build prerequisites are Node.js/npm plus the native build tools required by `better-sqlite3`; installed users do not need Node.js or developer tools.
+
+Upgrades preserve user data because the installer keeps the same Electron app identity and the SQLite database remains in the current Windows user's `%APPDATA%\My Health Tracker\` user-data directory. Uninstalling removes installed program files but does not silently remove that user-created database.
+
 ## Changelog
+
+### v1.1.33
+
+- Added `Behind-the-Body Cable Curl` to Biceps as a standard weighted cable curl using the existing bilateral exercise volume logic.
+- Added `Behind-the-Body Pronated Cable Curl` to Biceps as a distinct weighted cable curl variation using the existing bilateral exercise volume logic.
 
 ### v1.1.32
 
