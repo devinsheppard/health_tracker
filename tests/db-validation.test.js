@@ -235,6 +235,49 @@ test('saves and reloads Behind-the-Body Pronated Cable Curl workout entries with
   assert.equal(data.daily_ledger[0].lifetime_lifting_total, 1260);
 });
 
+test('saves, edits, deletes, and reloads timed plank workout entries without lifting pounds', () => {
+  init();
+
+  const session = db.addRow('workout_sessions', {
+    date: '2026-07-19',
+    pre_glucose: null,
+    post_glucose: null,
+    duration: 2,
+    effort: 'moderate',
+    notes: 'planks'
+  });
+  const exercise = db.addRow('workout_exercises', {
+    session_id: session.id,
+    muscle_group: 'Planks',
+    exercise: 'Forearm Plank',
+    sets: 2,
+    reps: null,
+    weight: null,
+    seconds: 60,
+    mode: 'timed',
+    pounds: 0
+  });
+
+  let data = db.getAllData();
+  assert.equal(data.workout_exercises[0].exercise, 'Forearm Plank');
+  assert.equal(data.workout_exercises[0].seconds, 60);
+  assert.equal(data.daily_ledger[0].workout_volume, 0);
+  assert.equal(data.daily_ledger[0].lifetime_lifting_total, 0);
+
+  db.updateRow('workout_exercises', exercise.id, { seconds: 90, pounds: 0 });
+  data = db.getAllData();
+  assert.equal(data.workout_exercises.length, 1);
+  assert.equal(data.workout_exercises[0].id, exercise.id);
+  assert.equal(data.workout_exercises[0].seconds, 90);
+  assert.equal(data.daily_ledger[0].workout_volume, 0);
+
+  db.deleteRow('workout_exercises', exercise.id);
+  data = db.getAllData();
+  assert.equal(data.workout_exercises.length, 0);
+  assert.equal(data.daily_ledger[0].workout_volume, 0);
+  assert.equal(data.daily_ledger[0].lifetime_lifting_total, 0);
+});
+
 test('accepts valid custom lab catalog tests', () => {
   init();
 
@@ -390,6 +433,39 @@ test('rejects invalid workout and activity rows without saving them', () => {
     mode: 'sideways',
     pounds: 3000
   }), /Validation failed: mode/);
+  assert.throws(() => db.addRow('workout_exercises', {
+    session_id: 1,
+    muscle_group: 'Planks',
+    exercise: 'Forearm Plank',
+    sets: 1,
+    reps: -1,
+    weight: 0,
+    seconds: 60,
+    mode: 'timed',
+    pounds: 0
+  }), /Validation failed: reps/);
+  assert.throws(() => db.addRow('workout_exercises', {
+    session_id: 1,
+    muscle_group: 'Planks',
+    exercise: 'Weighted Forearm Plank',
+    sets: 1,
+    reps: 0,
+    weight: -10,
+    seconds: 60,
+    mode: 'timed',
+    pounds: 0
+  }), /Validation failed: weight/);
+  assert.throws(() => db.addRow('workout_exercises', {
+    session_id: 1,
+    muscle_group: 'Planks',
+    exercise: 'Forearm Plank',
+    sets: 1,
+    reps: 0,
+    weight: 0,
+    seconds: -1,
+    mode: 'timed',
+    pounds: 0
+  }), /Validation failed: seconds/);
   assert.throws(() => db.addRow('activities', {
     date: '2026-07-01',
     name: 'Impossible',

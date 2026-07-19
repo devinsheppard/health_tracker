@@ -1,12 +1,13 @@
 (function initCatalog(root, factory) {
-  const catalog = factory();
+  const plankCatalog = typeof require === 'function' ? require('../shared/planks') : root.HealthPlankCatalog;
+  const catalog = factory(plankCatalog);
 
   if (typeof module === 'object' && module.exports) {
     module.exports = catalog;
   }
 
   root.HealthCatalog = catalog;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function catalogFactory() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function catalogFactory(plankCatalog = {}) {
   const pages = [
     ['dashboard', 'Dashboard'],
     ['glucose', 'Glucose'],
@@ -61,8 +62,9 @@
     Biceps: [['Curls pronated', 'single'], ['Curls supinated', 'single'], ['Hammer curls', 'single'], ['Barbell curls', 'bilateral'], ['Cable Kong Curl', 'bilateral'], ['Behind-the-Body Cable Curl', 'bilateral'], ['Behind-the-Body Pronated Cable Curl', 'bilateral'], ['Concentration curls', 'single'], ['Cable curls', 'single'], ['Preacher curls', 'single']],
     Triceps: [['Tricep cable pushdowns', 'bilateral'], ['Overhead tricep extension', 'bilateral'], ['Skull crushers', 'bilateral'], ['Tricep dips', 'bodyweight'], ['Close-grip bench press', 'bilateral'], ['Kickbacks', 'single']],
     Legs: [['Bodyweight squats', 'bodyweight'], ['Goblet squats', 'bilateral'], ['Leg press', 'bilateral'], ['Lunges', 'single'], ['Step-ups', 'single'], ['Calf raises', 'bilateral'], ['Leg curls', 'bilateral'], ['Leg extensions', 'bilateral'], ['Glute bridges', 'bilateral'], ['Hip thrusts', 'bilateral']],
-    Core: [['Planks', 'timed'], ['Crunches', 'bodyweight'], ['Bicycle crunches', 'bodyweight'], ['Leg raises', 'bodyweight'], ['Russian twists', 'bilateral'], ['Dead bug', 'bodyweight']]
+    Core: [['Planks', 'timed'], ['Crunches', 'bodyweight'], ['Bicycle crunches', 'bodyweight'], ['Leg raises', 'bodyweight'], ['Russian twists', 'bilateral'], ['Dead bug', 'bodyweight']],
+    Planks: (plankCatalog.plankDefinitions || []).map((definition) => [definition.name, 'timed'])
   };
 
-  return { pages, dietProfiles, activities, exerciseGroups };
+  return { pages, dietProfiles, activities, exerciseGroups, plankDefinitions: plankCatalog.plankDefinitions || [] };
 });

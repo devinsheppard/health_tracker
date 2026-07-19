@@ -177,3 +177,73 @@ test('calculates Behind-the-Body Pronated Cable Curl through shared bilateral wo
   assert.equal(challenge.week, 1);
   assert.equal(challenge.month, 1);
 });
+
+test('calculates standard forearm plank calories from body weight and duration', () => {
+  const calories = calc.plankCaloriesForExercise({ exercise: 'Forearm Plank', sets: 2, seconds: 60, mode: 'timed' }, 220, 'moderate');
+
+  assert.equal(Number(calories.toFixed(1)), 11.5);
+});
+
+test('uses lower intensity for modified knee plank than standard forearm plank', () => {
+  const standard = calc.plankCaloriesForExercise({ exercise: 'Forearm Plank', sets: 1, seconds: 60, mode: 'timed' }, 220, 'moderate');
+  const modified = calc.plankCaloriesForExercise({ exercise: 'Knee Forearm Plank', sets: 1, seconds: 60, mode: 'timed' }, 220, 'moderate');
+
+  assert.equal(modified < standard, true);
+  assert.equal(Number(modified.toFixed(1)), 4.5);
+});
+
+test('uses entered duration for dynamic planks', () => {
+  const calories = calc.plankCaloriesForExercise({ exercise: 'Plank Shoulder Taps', sets: 1, reps: 40, seconds: 60, mode: 'timed' }, 220, 'moderate');
+
+  assert.equal(calc.plankActiveSeconds({ exercise: 'Plank Shoulder Taps', sets: 1, reps: 40, seconds: 60 }), 60);
+  assert.equal(Number(calories.toFixed(1)), 8.0);
+});
+
+test('estimates dynamic plank duration from repetitions when duration is blank', () => {
+  const row = { exercise: 'Plank Mountain Climbers', sets: 2, reps: 30, seconds: '', mode: 'timed' };
+
+  assert.equal(calc.plankActiveSeconds(row), 48);
+  assert.equal(Number(calc.plankCaloriesForExercise(row, 220, 'moderate').toFixed(1)), 9.8);
+});
+
+test('does not double count dynamic plank entries with both duration and repetitions', () => {
+  const withBoth = { exercise: 'Plank Jacks', sets: 1, reps: 60, seconds: 45, mode: 'timed' };
+  const withDuration = { exercise: 'Plank Jacks', sets: 1, reps: 0, seconds: 45, mode: 'timed' };
+
+  assert.equal(calc.plankActiveSeconds(withBoth), 45);
+  assert.equal(calc.plankCaloriesForExercise(withBoth, 220, 'moderate'), calc.plankCaloriesForExercise(withDuration, 220, 'moderate'));
+});
+
+test('applies bounded added-weight adjustment for weighted plank', () => {
+  const unweighted = calc.plankCaloriesForExercise({ exercise: 'Weighted Forearm Plank', sets: 1, seconds: 60, weight: 0, mode: 'timed' }, 220, 'moderate');
+  const weighted = calc.plankCaloriesForExercise({ exercise: 'Weighted Forearm Plank', sets: 1, seconds: 60, weight: 500, mode: 'timed' }, 220, 'moderate');
+
+  assert.equal(Number(calc.plankWeightMultiplier({ exercise: 'Weighted Forearm Plank', weight: 500 }, 220).toFixed(2)), 1.15);
+  assert.equal(Number((weighted / unweighted).toFixed(2)), 1.15);
+});
+
+test('handles unilateral plank time per side through sets', () => {
+  const perSide = { exercise: 'Side Plank', sets: 2, seconds: 30, mode: 'timed' };
+  const combined = { exercise: 'Side Plank', sets: 1, seconds: 60, mode: 'timed' };
+
+  assert.equal(calc.plankActiveSeconds(perSide), 60);
+  assert.equal(calc.plankActiveSeconds(combined), 60);
+  assert.equal(calc.plankCaloriesForExercise(perSide, 220, 'moderate'), calc.plankCaloriesForExercise(combined, 220, 'moderate'));
+});
+
+test('plank calories handle missing weight, zero duration, and very large values safely', () => {
+  assert.equal(calc.plankCaloriesForExercise({ exercise: 'Forearm Plank', sets: 1, seconds: 60 }, 0, 'moderate'), 0);
+  assert.equal(calc.plankCaloriesForExercise({ exercise: 'Forearm Plank', sets: 1, seconds: 0 }, 220, 'moderate'), 0);
+  assert.equal(calc.plankActiveSeconds({ exercise: 'Forearm Plank', sets: 100, seconds: 10000 }), 7200);
+  assert.equal(Number.isFinite(calc.plankCaloriesForExercise({ exercise: 'Forearm Plank', sets: 100, seconds: 10000 }, 220, 'vigorous')), true);
+});
+
+test('plank workout calories use active plank time without regressing non-plank estimates', () => {
+  const nonPlank = calc.workoutCalorieEstimate({ effort: 'moderate', duration: 30 }, [], 220, 2100);
+  const plankOnly = calc.workoutCalorieEstimate({ effort: 'moderate' }, [{ exercise: 'Forearm Plank', mode: 'timed', sets: 2, seconds: 60, pounds: 0 }], 220, 2100);
+
+  assert.equal(Number(nonPlank.calories.toFixed(1)), 293.2);
+  assert.equal(plankOnly.duration, 2);
+  assert.equal(Number(plankOnly.calories.toFixed(1)), 11.5);
+  assert.equal(plankOnly.pounds, 0);
+});

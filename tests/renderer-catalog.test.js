@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const catalog = require('../src/renderer/catalog');
+const planks = require('../src/shared/planks');
 
 test('exposes page, diet, and activity catalogs', () => {
   assert.deepEqual(catalog.pages[0], ['dashboard', 'Dashboard']);
@@ -48,4 +49,24 @@ test('keeps Behind-the-Body Pronated Cable Curl distinct from the standard varia
 
   assert.deepEqual(standard, [['Behind-the-Body Cable Curl', 'bilateral']]);
   assert.deepEqual(pronated, [['Behind-the-Body Pronated Cable Curl', 'bilateral']]);
+});
+
+test('adds the plank exercise family as timed exercises', () => {
+  const plankNames = catalog.exerciseGroups.Planks.map(([name]) => name);
+
+  assert.equal(plankNames.includes('Forearm Plank'), true);
+  assert.equal(plankNames.includes('Weighted Forearm Plank'), true);
+  assert.equal(plankNames.includes('Plank Mountain Climbers'), true);
+  assert.equal(plankNames.includes('Side Plank Thread-the-Needle'), true);
+  assert.equal(catalog.exerciseGroups.Planks.every(([, mode]) => mode === 'timed'), true);
+});
+
+test('resolves plank aliases without duplicate catalog rows', () => {
+  const walkUps = planks.plankDefinition('Plank Walk-Ups');
+  const upDowns = planks.plankDefinition('Plank Up-Downs');
+  const catalogRows = catalog.exerciseGroups.Planks.filter(([name]) => /walk-ups|up-downs/i.test(name));
+
+  assert.equal(walkUps.id, 'plank-walk-ups');
+  assert.equal(upDowns.id, walkUps.id);
+  assert.deepEqual(catalogRows, [['Plank Walk-Ups', 'timed']]);
 });

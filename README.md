@@ -36,6 +36,7 @@ Recommended habit: make a database backup before installing a new version, befor
 - Food, calorie, net carb, protein, and fat logging
 - Blood glucose logging with context-specific thresholds and estimated A1C
 - Workout sessions, exercise rows, workout templates, bodyweight handling, and a 1,000,000 lb lifetime lifting challenge
+- Duration-based plank exercise family with conservative MET-based calorie estimates
 - Activity tracking with linked workout burn
 - Step tracking with calorie estimates and walking double-count prevention
 - Weight, body fat, lean body mass, sleep, medication, and lab tracking
@@ -102,11 +103,19 @@ Build the Windows NSIS installer:
 npm run build
 ```
 
+Plank exercise definitions, aliases, MET values, cadence assumptions, and weighted-duration notes are documented in [docs/PLANKS.md](docs/PLANKS.md).
+
 The installer version comes from `package.json` and `package-lock.json`. For a new release, update both package versions, add a changelog entry, run the checks, then run `npm run build`. Electron Builder writes the NSIS installer to `release/`; curated release artifacts can be copied to `dist/release/<version>/` with release notes, checksums, and an artifact manifest. Developer build prerequisites are Node.js/npm plus the native build tools required by `better-sqlite3`; installed users do not need Node.js or developer tools.
 
 Upgrades preserve user data because the installer keeps the same Electron app identity and the SQLite database remains in the current Windows user's `%APPDATA%\My Health Tracker\` user-data directory. Uninstalling removes installed program files but does not silently remove that user-created database.
 
 ## Changelog
+
+### v1.1.34
+
+- Added a duration-based plank exercise family with static, dynamic, unilateral, weighted, stability-ball, and suspension-trainer variations.
+- Added conservative plank calorie estimates using centralized MET, cadence, active-time, effort, and added-weight assumptions while preserving workout history and 1,000,000 lb challenge conventions.
+- Fixed numeric fields becoming unable to accept direct keyboard input after deleting entries in shared form/delete workflows, including workout, glucose, blood pressure, and related numeric-entry screens.
 
 ### v1.1.33
 

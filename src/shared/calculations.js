@@ -1,8 +1,9 @@
 (function initCalculations(root, factory) {
-  const calculations = factory();
+  const plankCatalog = typeof require === 'function' ? require('./planks') : root.HealthPlankCatalog;
+  const calculations = factory(plankCatalog);
   if (typeof module === 'object' && module.exports) module.exports = calculations;
   root.HealthCalculations = calculations;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function calculationsFactory() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function calculationsFactory(plankCatalog = {}) {
   function n(value) {
     return Number(value) || 0;
   }
@@ -108,17 +109,55 @@
   }
 
   function workoutCalorieEstimate(session, exercises = [], weightPounds = 0, bmrCalories = 0) {
-    const duration = n(session?.duration) || estimatedExerciseMinutes(exercises);
+    const plankRows = (exercises || []).filter((exercise) => plankCatalog.isPlankExercise?.(exercise.exercise));
+    const nonPlankRows = (exercises || []).filter((exercise) => !plankCatalog.isPlankExercise?.(exercise.exercise));
+    const plankMinutes = plankRows.reduce((sum, exercise) => sum + plankActiveSeconds(exercise) / 60, 0);
+    const sessionDuration = n(session?.duration);
+    const nonPlankDuration = sessionDuration
+      ? Math.max(0, sessionDuration - plankMinutes)
+      : estimatedExerciseMinutes(nonPlankRows);
+    const duration = plankRows.length ? plankMinutes + nonPlankDuration : sessionDuration || estimatedExerciseMinutes(exercises);
     const hours = duration / 60;
     const pounds = exercises.reduce((sum, exercise) => sum + n(exercise.pounds), 0);
-    const weightCalories = workoutMet(session?.effort) * lbToKg(weightPounds) * hours;
-    const bmrDuringWorkout = n(bmrCalories) * (duration / 1440);
-    const loadFactor = 1 + Math.min(0.25, pounds / Math.max(1, n(weightPounds)) / 1000);
+    const nonPlankHours = plankRows.length ? nonPlankDuration / 60 : hours;
+    const weightCalories = workoutMet(session?.effort) * lbToKg(weightPounds) * nonPlankHours;
+    const bmrDuringWorkout = n(bmrCalories) * (nonPlankDuration / 1440);
+    const loadFactor = 1 + Math.min(0.25, nonPlankRows.reduce((sum, exercise) => sum + n(exercise.pounds), 0) / Math.max(1, n(weightPounds)) / 1000);
+    const plankCalories = plankRows.reduce((sum, exercise) => sum + plankCaloriesForExercise(exercise, weightPounds, session?.effort), 0);
     return {
-      calories: (weightCalories + bmrDuringWorkout) * loadFactor,
+      calories: (weightCalories + bmrDuringWorkout) * loadFactor + plankCalories,
       duration,
       pounds
     };
+  }
+
+  function plankActiveSeconds(row) {
+    const definition = plankCatalog.plankDefinition?.(row?.exercise);
+    if (!definition) return 0;
+    if (n(row?.seconds) > 0) return Math.min(7200, n(row.seconds) * Math.max(1, n(row.sets) || 1));
+    if (definition.type === 'dynamic' && n(row?.reps) > 0) {
+      return Math.min(7200, n(row.reps) * Math.max(1, n(row.sets) || 1) * n(definition.cadenceSecondsPerRep || 1.5));
+    }
+    return 0;
+  }
+
+  function plankWeightMultiplier(row, bodyWeightPounds) {
+    const definition = plankCatalog.plankDefinition?.(row?.exercise);
+    if (!definition?.supportsWeight || n(row?.weight) <= 0 || n(bodyWeightPounds) <= 0) return 1;
+    const ratio = Math.min(0.5, n(row.weight) / n(bodyWeightPounds));
+    return 1 + Math.min(0.15, ratio * 0.3);
+  }
+
+  function effortMultiplier(effort) {
+    return { light: 0.9, moderate: 1, vigorous: 1.12 }[effort] || 1;
+  }
+
+  function plankCaloriesForExercise(row, bodyWeightPounds = 0, effort = 'moderate') {
+    const definition = plankCatalog.plankDefinition?.(row?.exercise);
+    if (!definition) return 0;
+    const activeMinutes = plankActiveSeconds(row) / 60;
+    if (!activeMinutes || n(bodyWeightPounds) <= 0) return 0;
+    return n(definition.met) * 3.5 * lbToKg(bodyWeightPounds) / 200 * activeMinutes * plankWeightMultiplier(row, bodyWeightPounds) * effortMultiplier(effort);
   }
 
   function exercisePounds(row, bodyWeightPounds = 0) {
@@ -161,6 +200,9 @@
     workoutMet,
     estimatedExerciseMinutes,
     workoutCalorieEstimate,
+    plankActiveSeconds,
+    plankCaloriesForExercise,
+    plankWeightMultiplier,
     exercisePounds,
     lifetimePounds
   };

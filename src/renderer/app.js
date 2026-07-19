@@ -19,6 +19,8 @@ const {
   workoutMet,
   workoutCalorieEstimate: calculateWorkoutCalories,
   exercisePounds: calculateExercisePounds,
+  plankActiveSeconds,
+  plankCaloriesForExercise,
   lifetimePounds: calculateLifetimePounds
 } = calc;
 const {
@@ -28,6 +30,7 @@ const {
   cellHtml
 } = html;
 const { pages, dietProfiles, activities, exerciseGroups } = catalog;
+const plankCatalog = window.HealthPlankCatalog || {};
 const { categories: labCategories, searchBuiltInTests, findBuiltInTest, normalize: normalizeLabSearch } = labCatalogTools;
 const { ledgerTrendSeries, trendDelta } = trendTools;
 const { localDateKey, today, nowTime, fmt, age } = ui;
@@ -615,6 +618,16 @@ function draftExerciseFields() {
 }
 
 function exerciseConventionNote(exercise) {
+  const plankDefinition = plankCatalog.plankDefinition?.(exercise);
+  if (plankDefinition) {
+    const guidance = [
+      'enter active seconds per set',
+      plankDefinition.supportsReps ? 'reps estimate active time only when seconds are blank' : '',
+      plankDefinition.supportsWeight ? 'weight is added load with a capped calorie adjustment' : '',
+      plankDefinition.unilateral ? 'for left/right work, enter each side as its own set or enter one combined total set, not both' : ''
+    ].filter(Boolean).join('; ');
+    return `<div class="alert">${esc(exercise)}: ${esc(guidance)}. MET ${fmt(plankDefinition.met, 1)}. Timed plank entries add calorie burn while lifting-challenge pounds stay at 0.</div>`;
+  }
   if (exercise !== 'Cable Kong Curl') return '';
   return '<div class="alert">Cable Kong Curl: count one rep as one curl by one arm. Enter the resistance shown on one cable stack/handle. The static extended-arm hold is not a separate rep. Volume uses the standard bilateral formula without left/right doubling.</div>';
 }
@@ -626,10 +639,17 @@ function draftExerciseTable() {
     fmt(exercise.sets),
     fmt(exercise.reps),
     exercise.mode === 'bodyweight' ? 'bodyweight' : fmt(exercise.weight),
-    exercise.mode === 'timed' ? `${fmt(exercise.seconds)} sec` : '',
+    exercise.mode === 'timed' ? timedExerciseSummary(exercise) : '',
     fmt(exercise.pounds),
     raw(`<button class="mini-button" data-remove-draft-exercise="${index}" type="button">Remove</button>`)
   ]));
+}
+
+function timedExerciseSummary(exercise) {
+  if (!plankCatalog.isPlankExercise?.(exercise.exercise)) return `${fmt(exercise.seconds)} sec`;
+  const activeSeconds = plankActiveSeconds(exercise);
+  const calories = plankCaloriesForExercise(exercise, profileWeight(), workoutSessionDraft.effort || 'moderate');
+  return `${fmt(activeSeconds)} sec active, ${fmt(calories)} cal`;
 }
 
 function workoutTemplatesPanel() {
@@ -1143,10 +1163,13 @@ function bindActivityDetailActions() {
     const row = activityDisplayRows().find((activity) => String(activity.id) === String(selectedActivityId));
     if (!row) return;
     if (!confirm(`Delete this ${row.kind === 'workout' ? 'workout' : 'activity'}?`)) return;
+    releaseInputFocus();
     await save(async () => {
       if (row.kind === 'workout' && row.source_session_id) {
+        clearDeletedState('workout_sessions', n(row.source_session_id));
         await api.delete('workout_sessions', n(row.source_session_id));
       } else if (!row.synthetic) {
+        clearDeletedState('activities', n(row.id));
         await api.delete('activities', n(row.id));
       }
       selectedActivityId = null;
@@ -1154,6 +1177,7 @@ function bindActivityDetailActions() {
       editingWorkoutSessionId = null;
       editingExerciseId = null;
     });
+    focusFirstEditableInput();
   });
 }
 
@@ -1176,10 +1200,50 @@ function bindWeightForm() {
 function bindDeletes() {
   document.querySelectorAll('[data-delete]').forEach((button) => {
     button.addEventListener('click', async () => {
+      const tableName = button.dataset.table;
+      const id = Number(button.dataset.delete);
       if (!confirm('Delete this entry?')) return;
-      await save(() => api.delete(button.dataset.table, Number(button.dataset.delete)));
+      releaseInputFocus();
+      await save(async () => {
+        clearDeletedState(tableName, id);
+        return api.delete(tableName, id);
+      });
+      focusFirstEditableInput();
     });
   });
+}
+
+function releaseInputFocus() {
+  if (document.activeElement && typeof document.activeElement.blur === 'function') {
+    document.activeElement.blur();
+  }
+}
+
+function focusFirstEditableInput() {
+  requestAnimationFrame(() => {
+    const field = document.querySelector('form input[type="number"]:not([disabled]):not([readonly])')
+      || document.querySelector('form input:not([type="hidden"]):not([disabled]):not([readonly]), form select:not([disabled]), form textarea:not([disabled]):not([readonly])');
+    if (field && typeof field.focus === 'function') field.focus();
+  });
+}
+
+function clearDeletedState(tableName, id) {
+  const rowId = Number(id);
+  if (tableName === 'workout_sessions') {
+    if (selectedWorkoutSessionId === rowId) selectedWorkoutSessionId = null;
+    if (editingWorkoutSessionId === rowId) editingWorkoutSessionId = null;
+    if (draftWorkoutExercises.some((exercise) => n(exercise.session_id) === rowId)) draftWorkoutExercises = [];
+    const editedExercise = (state.workout_exercises || []).find((exercise) => exercise.id === editingExerciseId);
+    if (editedExercise && n(editedExercise.session_id) === rowId) editingExerciseId = null;
+  }
+  if (tableName === 'workout_exercises' && editingExerciseId === rowId) editingExerciseId = null;
+  if (tableName === 'activities' && String(selectedActivityId) === String(rowId)) {
+    selectedActivityId = null;
+    editingActivityId = null;
+  }
+  if (tableName === 'activities' && editingActivityId === rowId) editingActivityId = null;
+  if (tableName === 'step_log' && editingStepLogId === rowId) editingStepLogId = null;
+  if (tableName === 'lab_results' && editingLabResultId === rowId) editingLabResultId = null;
 }
 
 function formData(form) {
@@ -1492,7 +1556,7 @@ function workoutExercisesTable(sessionId, editingExercise = null) {
     fmt(exercise.sets),
     fmt(exercise.reps),
     exercise.mode === 'bodyweight' ? `${fmt(bodyweightBasisForExercise(exercise))} lb bodyweight` : fmt(exercise.weight),
-    exercise.mode === 'timed' ? `${fmt(exercise.seconds)} sec` : '',
+    exercise.mode === 'timed' ? timedExerciseSummary(exercise) : '',
     fmt(exercise.pounds),
     raw(`<div class="actions"><button class="mini-button" data-edit-exercise="${attr(exercise.id)}" type="button">Edit</button>${del('workout_exercises', exercise.id).html}</div>`)
   ]))}`;
