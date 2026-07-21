@@ -53,6 +53,7 @@ boot();
 
 async function boot() {
   renderNav();
+  document.addEventListener('click', handleNumberStepClick);
   document.getElementById('todayText').textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   document.getElementById('themeToggle').addEventListener('click', async () => {
     const theme = document.body.classList.contains('light') ? 'dark' : 'light';
@@ -795,8 +796,36 @@ function fields(items) {
     if (type === 'select') {
       return `<label>${esc(label)}<select name="${attr(name)}">${options.map((option) => `<option value="${attr(option)}" ${option === value ? 'selected' : ''}>${esc(option || 'Not set')}</option>`).join('')}</select></label>`;
     }
-    return `<label>${esc(label)}<input name="${attr(name)}" type="${attr(type)}" value="${attr(value)}" ${type === 'number' ? 'step="any"' : ''}></label>`;
+    if (type === 'number') {
+      return numberField(name, label, value);
+    }
+    return `<label>${esc(label)}<input name="${attr(name)}" type="${attr(type)}" value="${attr(value)}"></label>`;
   }).join('')}</div>`;
+}
+
+function numberField(name, label, value = '') {
+  return `<label>${esc(label)}
+    <span class="number-control">
+      <input name="${attr(name)}" type="text" inputmode="decimal" data-number-input value="${attr(value)}">
+      <button class="number-step" data-number-step="-1" aria-label="Decrease ${attr(label)}" type="button">-</button>
+      <button class="number-step" data-number-step="1" aria-label="Increase ${attr(label)}" type="button">+</button>
+    </span>
+  </label>`;
+}
+
+function handleNumberStepClick(event) {
+  const button = event.target.closest('[data-number-step]');
+  if (!button) return;
+  const input = button.closest('.number-control')?.querySelector('[data-number-input]');
+  if (!input) return;
+  const direction = Number(button.dataset.numberStep) || 0;
+  const current = Number(input.value);
+  const base = Number.isFinite(current) ? current : 0;
+  const next = base + direction;
+  input.value = String(next);
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  input.focus();
+  input.select();
 }
 
 function bindForm(id, tableName) {

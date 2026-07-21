@@ -111,6 +111,10 @@ Upgrades preserve user data because the installer keeps the same Electron app id
 
 ## Changelog
 
+### v1.1.38
+
+- Replaced shared native number inputs with text-backed numeric controls and explicit step buttons so manual numeric replacement continues working after deleting saved records.
+
 ### v1.1.37
 
 - Replaced native delete confirmation dialogs with an app-rendered confirmation modal so deleting records does not leave Electron's native modal focus state stuck and block typing or dropdown interaction.

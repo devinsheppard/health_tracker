@@ -343,6 +343,34 @@ textarea {
   padding: 8px 10px;
 }
 
+.number-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px 34px;
+  align-items: stretch;
+}
+
+.number-control input {
+  border-radius: 7px 0 0 7px;
+}
+
+.number-step {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-left: 0;
+  background: var(--panel-2);
+  color: var(--text);
+  font-weight: 700;
+}
+
+.number-step:last-child {
+  border-radius: 0 7px 7px 0;
+}
+
+.number-step:hover {
+  background: var(--accent);
+  color: #06100d;
+}
+
 textarea {
   min-height: 72px;
   resize: vertical;

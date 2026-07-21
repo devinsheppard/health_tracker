@@ -54,6 +54,10 @@ if (process.versions.electron) {
     assert.equal(result.afterDeleteSameTab.value, '155');
     assert.notEqual(result.afterDeleteSameTabDropdown.before, result.afterDeleteSameTabDropdown.after);
     assert.equal(result.afterDeleteSameTabSpinner.after > result.afterDeleteSameTabSpinner.before, true);
+    assert.equal(result.afterFoodDelete.description.value, 'eggs and coffee');
+    assert.equal(result.afterFoodDelete.calories.value, '450');
+    assert.notEqual(result.afterFoodDelete.dropdown.before, result.afterFoodDelete.dropdown.after);
+    assert.equal(result.afterFoodDelete.spinner.after > result.afterFoodDelete.spinner.before, true);
     assert.equal(result.afterDeleteOtherTab.value, '120');
     assert.equal(result.afterDeleteOtherTab.inputEvents > 0, true);
     assert.notEqual(result.afterDeleteOtherTabDropdown.before, result.afterDeleteOtherTabDropdown.after);
@@ -123,7 +127,7 @@ async function runElectronHarness() {
   await navigate(win, 'glucose');
 
   harnessStep = 'type before delete';
-  const beforeDelete = await keyboardType(win, '#glucoseForm input[name="value"]', '101');
+  const beforeDelete = await keyboardReplace(win, '#glucoseForm input[name="value"]', '100', '101');
   harnessStep = 'dropdown before delete';
   const beforeDeleteDropdown = await selectNextOption(win, '#glucoseForm select[name="context"]');
   harnessStep = 'spinner before delete';
@@ -131,16 +135,27 @@ async function runElectronHarness() {
   harnessStep = 'delete glucose';
   const glucoseDelete = await clickDelete(win, 'glucose_readings');
   harnessStep = 'type glucose after delete';
-  const afterDeleteSameTab = await keyboardType(win, '#glucoseForm input[name="value"]', '155');
+  const afterDeleteSameTab = await keyboardReplace(win, '#glucoseForm input[name="value"]', '100', '155');
   harnessStep = 'dropdown same tab after delete';
   const afterDeleteSameTabDropdown = await selectNextOption(win, '#glucoseForm select[name="context"]');
   harnessStep = 'spinner same tab after delete';
   const afterDeleteSameTabSpinner = await incrementNumberInput(win, '#glucoseForm input[name="value"]', '155');
+  harnessStep = 'navigate food';
+  await navigate(win, 'food');
+  harnessStep = 'delete food';
+  const foodDelete = await clickDelete(win, 'food_log');
+  harnessStep = 'text and calories after food delete';
+  const afterFoodDelete = {
+    description: await keyboardReplace(win, '#foodForm input[name="description"]', 'old text', 'eggs and coffee'),
+    dropdown: await selectNextOption(win, '#foodForm select[name="meal_type"]'),
+    calories: await keyboardReplace(win, '#foodForm input[name="calories"]', '20', '450'),
+    spinner: await incrementNumberInput(win, '#foodForm input[name="calories"]', '450')
+  };
 
   harnessStep = 'navigate blood pressure';
   await navigate(win, 'bloodPressure');
   harnessStep = 'type blood pressure after delete';
-  const afterDeleteOtherTab = await keyboardType(win, '#bloodPressureForm input[name="systolic"]', '120');
+  const afterDeleteOtherTab = await keyboardReplace(win, '#bloodPressureForm input[name="systolic"]', '118', '120');
   harnessStep = 'dropdown other tab after delete';
   const afterDeleteOtherTabDropdown = await selectNextOption(win, '#bloodPressureForm select[name="position"]');
 
@@ -149,16 +164,16 @@ async function runElectronHarness() {
   harnessStep = 'navigate weight';
   await navigate(win, 'weight');
   harnessStep = 'type weight after second delete';
-  const afterSecondDelete = await keyboardType(win, '#weightForm input[name="weight"]', '202');
+  const afterSecondDelete = await keyboardReplace(win, '#weightForm input[name="weight"]', '240', '202');
   harnessStep = 'navigate workouts';
   await navigate(win, 'workouts');
   harnessStep = 'delete workout exercise';
   const workoutExerciseDelete = await clickDelete(win, 'workout_exercises');
   harnessStep = 'type workout exercise after delete';
   const afterWorkoutExerciseDelete = {
-    sets: await keyboardType(win, '#workoutSessionForm input[name="ex_sets"]', '3'),
-    reps: await keyboardType(win, '#workoutSessionForm input[name="ex_reps"]', '10'),
-    weight: await keyboardType(win, '#workoutSessionForm input[name="ex_weight"]', '55'),
+    sets: await keyboardReplace(win, '#workoutSessionForm input[name="ex_sets"]', '1', '3'),
+    reps: await keyboardReplace(win, '#workoutSessionForm input[name="ex_reps"]', '1', '10'),
+    weight: await keyboardReplace(win, '#workoutSessionForm input[name="ex_weight"]', '50', '55'),
     dropdown: await selectNextOption(win, '#workoutSessionForm select[name="ex_muscle_group"]')
   };
   harnessStep = 'save post-delete values';
@@ -172,6 +187,7 @@ async function runElectronHarness() {
     afterDeleteSameTab,
     afterDeleteSameTabDropdown,
     afterDeleteSameTabSpinner,
+    afterFoodDelete,
     afterDeleteOtherTab,
     afterDeleteOtherTabDropdown,
     afterSecondDelete,
@@ -179,6 +195,7 @@ async function runElectronHarness() {
     savedPostDeleteValues,
     deletes: {
       glucoseDelete,
+      foodDelete,
       bloodPressureDelete,
       workoutExerciseDelete
     },
@@ -312,19 +329,13 @@ async function incrementNumberInput(win, selector, value) {
     (() => {
       const input = document.querySelector(${JSON.stringify(selector)});
       if (!input) throw new Error('Missing number input ${selector}. Active page: ' + document.querySelector('.nav-button.active')?.dataset.page);
+      const button = input.closest('.number-control')?.querySelector('[data-number-step="1"]');
+      if (!button) throw new Error('Missing number step button ${selector}. Active page: ' + document.querySelector('.nav-button.active')?.dataset.page);
       input.focus();
       input.value = ${JSON.stringify(value)};
       input.dispatchEvent(new Event('input', { bubbles: true }));
       const before = Number(input.value);
-      const originalStep = input.getAttribute('step');
-      input.setAttribute('step', '1');
-      input.stepUp();
-      if (originalStep === null) {
-        input.removeAttribute('step');
-      } else {
-        input.setAttribute('step', originalStep);
-      }
-      input.dispatchEvent(new Event('input', { bubbles: true }));
+      button.click();
       return {
         before,
         after: Number(input.value),
@@ -334,28 +345,69 @@ async function incrementNumberInput(win, selector, value) {
   `);
 }
 
+async function keyboardReplace(win, selector, initialText, replacementText) {
+  win.focus();
+  win.webContents.focus();
+  await waitFor(win, `document.querySelector(${JSON.stringify(selector)})`);
+  await win.webContents.executeJavaScript(`
+    (() => {
+      window.__inputProbe = [];
+      const input = document.querySelector(${JSON.stringify(selector)});
+      if (!input) throw new Error('Missing input ${selector}. Active page: ' + document.querySelector('.nav-button.active')?.dataset.page);
+      if (input.disabled || input.readOnly) throw new Error('Input is disabled/readOnly: ${selector}');
+      input.focus();
+      input.value = ${JSON.stringify(initialText)};
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.select();
+    })();
+  `);
+  win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Backspace' });
+  win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Backspace' });
+  await delay(40);
+  for (const char of replacementText) {
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: char });
+    win.webContents.sendInputEvent({ type: 'char', keyCode: char });
+    win.webContents.sendInputEvent({ type: 'keyUp', keyCode: char });
+    await delay(20);
+  }
+  await delay(100);
+  return win.webContents.executeJavaScript(`
+    (() => {
+      const input = document.querySelector(${JSON.stringify(selector)});
+      return {
+        value: input?.value || '',
+        active: document.activeElement === input,
+        keyEvents: window.__inputProbe.filter((event) => event.eventName === 'keydown').length,
+        beforeInputEvents: window.__inputProbe.filter((event) => event.eventName === 'beforeinput').length,
+        inputEvents: window.__inputProbe.filter((event) => event.eventName === 'input').length,
+        events: window.__inputProbe
+      };
+    })();
+  `);
+}
+
 async function savePostDeleteValues(win) {
   await navigate(win, 'glucose');
-  await keyboardType(win, '#glucoseForm input[name="value"]', '155');
+  await keyboardReplace(win, '#glucoseForm input[name="value"]', '100', '155');
   await win.webContents.executeJavaScript(`document.querySelector('#glucoseForm').requestSubmit();`);
   await waitFor(win, `(state.glucose_readings || []).some((row) => Number(row.value) === 155)`);
 
   await navigate(win, 'bloodPressure');
-  await keyboardType(win, '#bloodPressureForm input[name="systolic"]', '120');
-  await keyboardType(win, '#bloodPressureForm input[name="diastolic"]', '80');
+  await keyboardReplace(win, '#bloodPressureForm input[name="systolic"]', '118', '120');
+  await keyboardReplace(win, '#bloodPressureForm input[name="diastolic"]', '78', '80');
   await win.webContents.executeJavaScript(`document.querySelector('#bloodPressureForm').requestSubmit();`);
   await waitFor(win, `(state.blood_pressure_readings || []).some((row) => Number(row.systolic) === 120 && Number(row.diastolic) === 80)`);
 
   await navigate(win, 'weight');
-  await keyboardType(win, '#weightForm input[name="weight"]', '202');
+  await keyboardReplace(win, '#weightForm input[name="weight"]', '240', '202');
   await win.webContents.executeJavaScript(`document.querySelector('#weightForm').requestSubmit();`);
   await waitFor(win, `(state.weight_log || []).some((row) => Number(row.weight) === 202)`);
 
   await navigate(win, 'workouts');
-  await keyboardType(win, '#workoutSessionForm input[name="duration"]', '30');
-  await keyboardType(win, '#workoutSessionForm input[name="ex_sets"]', '3');
-  await keyboardType(win, '#workoutSessionForm input[name="ex_reps"]', '10');
-  await keyboardType(win, '#workoutSessionForm input[name="ex_weight"]', '55');
+  await keyboardReplace(win, '#workoutSessionForm input[name="duration"]', '10', '30');
+  await keyboardReplace(win, '#workoutSessionForm input[name="ex_sets"]', '1', '3');
+  await keyboardReplace(win, '#workoutSessionForm input[name="ex_reps"]', '1', '10');
+  await keyboardReplace(win, '#workoutSessionForm input[name="ex_weight"]', '50', '55');
   await win.webContents.executeJavaScript(`document.querySelector('[data-add-draft-exercise]').click();`);
   await waitFor(win, `document.querySelector('#workoutSessionForm .table-wrap')`);
   await win.webContents.executeJavaScript(`document.querySelector('#workoutSessionForm').requestSubmit();`);

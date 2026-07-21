@@ -36,6 +36,16 @@ test('delete confirmation is app-rendered and always removes its overlay', () =>
   assert.doesNotMatch(confirmDelete, /window\.confirm/);
 });
 
+test('shared numeric fields use text-backed editing with explicit step controls', () => {
+  const fields = appJs.slice(appJs.indexOf('function fields'), appJs.indexOf('function bindForm'));
+
+  assert.match(fields, /numberField\(name, label, value\)/);
+  assert.match(fields, /data-number-input/);
+  assert.match(fields, /inputmode="decimal"/);
+  assert.match(fields, /data-number-step/);
+  assert.doesNotMatch(fields, /type="\$\{attr\(type\)\}".*step="any"/s);
+});
+
 test('delete cleanup clears stale edit and selection state for affected tables', () => {
   const cleanup = appJs.slice(appJs.indexOf('function clearDeletedState'), appJs.indexOf('function formData(form)'));
 
