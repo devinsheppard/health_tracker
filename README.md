@@ -111,6 +111,19 @@ Upgrades preserve user data because the installer keeps the same Electron app id
 
 ## Changelog
 
+### v1.1.37
+
+- Replaced native delete confirmation dialogs with an app-rendered confirmation modal so deleting records does not leave Electron's native modal focus state stuck and block typing or dropdown interaction.
+
+### v1.1.36
+
+- Rebuilt the Windows installer after verifying Electron-native SQLite startup so the packaged app opens correctly after installation.
+
+### v1.1.35
+
+- Added a real-renderer regression harness for post-delete keyboard input and saved-value verification across glucose, blood pressure, weight, and workout exercise forms.
+- Kept shared delete cleanup from taking over global input focus after saved-record deletion.
+
 ### v1.1.34
 
 - Added a duration-based plank exercise family with static, dynamic, unilateral, weighted, stability-ball, and suspension-trainer variations.

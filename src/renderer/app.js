@@ -1162,8 +1162,7 @@ function bindActivityDetailActions() {
   document.querySelector('[data-delete-detail]')?.addEventListener('click', async () => {
     const row = activityDisplayRows().find((activity) => String(activity.id) === String(selectedActivityId));
     if (!row) return;
-    if (!confirm(`Delete this ${row.kind === 'workout' ? 'workout' : 'activity'}?`)) return;
-    releaseInputFocus();
+    if (!await confirmDelete(`Delete this ${row.kind === 'workout' ? 'workout' : 'activity'}?`)) return;
     await save(async () => {
       if (row.kind === 'workout' && row.source_session_id) {
         clearDeletedState('workout_sessions', n(row.source_session_id));
@@ -1177,7 +1176,6 @@ function bindActivityDetailActions() {
       editingWorkoutSessionId = null;
       editingExerciseId = null;
     });
-    focusFirstEditableInput();
   });
 }
 
@@ -1202,28 +1200,61 @@ function bindDeletes() {
     button.addEventListener('click', async () => {
       const tableName = button.dataset.table;
       const id = Number(button.dataset.delete);
-      if (!confirm('Delete this entry?')) return;
-      releaseInputFocus();
+      if (!await confirmDelete('Delete this entry?')) return;
       await save(async () => {
         clearDeletedState(tableName, id);
         return api.delete(tableName, id);
       });
-      focusFirstEditableInput();
     });
   });
 }
 
-function releaseInputFocus() {
-  if (document.activeElement && typeof document.activeElement.blur === 'function') {
-    document.activeElement.blur();
-  }
-}
+function confirmDelete(message) {
+  const previousFocus = document.activeElement;
+  const dialog = document.createElement('div');
+  dialog.className = 'confirm-backdrop';
+  dialog.innerHTML = `
+    <div class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+      <h2 id="confirmTitle">Confirm delete</h2>
+      <p>${esc(message)}</p>
+      <div class="actions">
+        <button class="ghost-button" data-confirm-cancel type="button">Cancel</button>
+        <button class="danger-button" data-confirm-ok type="button">Delete</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(dialog);
 
-function focusFirstEditableInput() {
-  requestAnimationFrame(() => {
-    const field = document.querySelector('form input[type="number"]:not([disabled]):not([readonly])')
-      || document.querySelector('form input:not([type="hidden"]):not([disabled]):not([readonly]), form select:not([disabled]), form textarea:not([disabled]):not([readonly])');
-    if (field && typeof field.focus === 'function') field.focus();
+  return new Promise((resolve) => {
+    let settled = false;
+    const okButton = dialog.querySelector('[data-confirm-ok]');
+    const cancelButton = dialog.querySelector('[data-confirm-cancel]');
+    const finish = (confirmed) => {
+      if (settled) return;
+      settled = true;
+      document.removeEventListener('keydown', onKeyDown, true);
+      dialog.remove();
+      if (previousFocus?.isConnected && typeof previousFocus.focus === 'function') previousFocus.focus();
+      resolve(confirmed);
+    };
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        finish(false);
+      }
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        finish(true);
+      }
+    };
+
+    okButton.addEventListener('click', () => finish(true));
+    cancelButton.addEventListener('click', () => finish(false));
+    dialog.addEventListener('click', (event) => {
+      if (event.target === dialog) finish(false);
+    });
+    document.addEventListener('keydown', onKeyDown, true);
+    cancelButton.focus();
   });
 }
 
