@@ -6,7 +6,15 @@ const calculations = require('./shared/calculations');
 let db;
 let dbPath;
 let dataDir;
-const SCHEMA_VERSION = 10;
+const SCHEMA_VERSION = 11;
+
+const environmentalColumns = [
+  'environment', 'workout_time', 'location', 'temperature_f', 'humidity_percent',
+  'wind_mph', 'heat_index_f', 'wind_chill_f', 'effective_temperature_f',
+  'weather_source', 'weather_is_automatic', 'weather_retrieved_at',
+  'environmental_load', 'calorie_adjustment_percent', 'base_calories',
+  'final_calories', 'safety_warnings', 'environmental_data'
+];
 
 const allowedTables = new Set([
   'glucose_readings',
@@ -28,10 +36,10 @@ const tableColumns = {
   glucose_readings: ['date', 'time', 'context', 'value', 'notes'],
   blood_pressure_readings: ['date', 'time', 'systolic', 'diastolic', 'heart_rate', 'position', 'notes'],
   food_log: ['date', 'meal_type', 'description', 'net_carbs', 'protein', 'fat', 'calories'],
-  workout_sessions: ['date', 'pre_glucose', 'post_glucose', 'duration', 'effort', 'notes'],
+  workout_sessions: ['date', 'pre_glucose', 'post_glucose', 'duration', 'effort', 'notes', ...environmentalColumns],
   workout_exercises: ['session_id', 'muscle_group', 'exercise', 'sets', 'reps', 'weight', 'seconds', 'mode', 'pounds'],
   workout_templates: ['name', 'duration', 'effort', 'notes', 'exercises'],
-  activities: ['date', 'name', 'met', 'duration', 'calories', 'notes', 'kind', 'source_session_id'],
+  activities: ['date', 'name', 'met', 'duration', 'calories', 'notes', 'kind', 'source_session_id', ...environmentalColumns],
   step_log: ['date', 'steps', 'notes'],
   weight_log: ['date', 'weight', 'body_fat', 'lean_body_mass', 'notes'],
   sleep_log: ['date', 'hours', 'quality', 'morning_glucose', 'notes'],
@@ -89,6 +97,7 @@ const validators = {
     numberField(row, 'post_glucose', { min: 20, max: 600 });
     numberField(row, 'duration', { min: 0, max: 1440 });
     enumField(row, 'effort', ['light', 'moderate', 'vigorous'], partial);
+    validateEnvironmentalFields(row);
   },
   workout_exercises: (row, partial = false) => {
     integerField(row, 'session_id', { min: 1, required: !partial });
@@ -113,6 +122,7 @@ const validators = {
     numberField(row, 'calories', { min: 0, max: 10000 });
     enumField(row, 'kind', ['activity', 'workout'], partial);
     integerField(row, 'source_session_id', { min: 1 });
+    validateEnvironmentalFields(row);
   },
   step_log: (row, partial = false) => {
     dateField(row, 'date', partial);
@@ -252,6 +262,11 @@ const migrations = [
     version: 10,
     name: 'carry_forward_effective_weight',
     up: rebuildDailyLedger
+  },
+  {
+    version: 11,
+    name: 'outdoor_environmental_conditions',
+    up: createEnvironmentalConditionColumns
   }
 ];
 
@@ -543,6 +558,32 @@ function createBloodPressureSchema() {
   ensureColumn('daily_ledger', 'diastolic_avg', 'REAL DEFAULT 0');
   ensureColumn('daily_ledger', 'heart_rate_avg', 'REAL DEFAULT 0');
   rebuildDailyLedger();
+}
+
+function createEnvironmentalConditionColumns() {
+  const definitions = {
+    environment: 'TEXT',
+    workout_time: 'TEXT',
+    location: 'TEXT',
+    temperature_f: 'REAL',
+    humidity_percent: 'REAL',
+    wind_mph: 'REAL',
+    heat_index_f: 'REAL',
+    wind_chill_f: 'REAL',
+    effective_temperature_f: 'REAL',
+    weather_source: 'TEXT',
+    weather_is_automatic: 'INTEGER',
+    weather_retrieved_at: 'TEXT',
+    environmental_load: 'TEXT',
+    calorie_adjustment_percent: 'REAL',
+    base_calories: 'REAL',
+    final_calories: 'REAL',
+    safety_warnings: 'TEXT',
+    environmental_data: 'TEXT'
+  };
+  for (const table of ['workout_sessions', 'activities']) {
+    for (const [column, definition] of Object.entries(definitions)) ensureColumn(table, column, definition);
+  }
 }
 
 function getSchemaVersion() {
@@ -1052,6 +1093,32 @@ function importRow(table, row) {
 
 function validateRow(table, row, partial = false) {
   validators[table]?.(row, partial);
+}
+
+function validateEnvironmentalFields(row) {
+  enumField(row, 'environment', ['indoor', 'outdoor'], true);
+  timeField(row, 'workout_time', true);
+  numberField(row, 'temperature_f', { min: -150, max: 180 });
+  numberField(row, 'humidity_percent', { min: 0, max: 100 });
+  numberField(row, 'wind_mph', { min: 0, max: 300 });
+  numberField(row, 'heat_index_f', { min: -150, max: 250 });
+  numberField(row, 'wind_chill_f', { min: -250, max: 180 });
+  numberField(row, 'effective_temperature_f', { min: -250, max: 250 });
+  integerField(row, 'weather_is_automatic', { min: 0, max: 1 });
+  enumField(row, 'environmental_load', ['Low', 'Moderate', 'High', 'Extreme'], true);
+  numberField(row, 'calorie_adjustment_percent', { min: 0, max: 100 });
+  numberField(row, 'base_calories', { min: 0, max: 10000 });
+  numberField(row, 'final_calories', { min: 0, max: 10000 });
+  textField(row, 'location', { max: 300 });
+  textField(row, 'weather_source', { max: 200 });
+  textField(row, 'weather_retrieved_at', { max: 80 });
+  textField(row, 'safety_warnings', { max: 4000 });
+  textField(row, 'environmental_data', { max: 10000 });
+  if (row.environment === 'outdoor') {
+    for (const field of ['workout_time', 'location', 'temperature_f', 'humidity_percent', 'wind_mph', 'weather_source']) {
+      if (!hasValue(row, field)) fail(field, 'is required for outdoor exercise');
+    }
+  }
 }
 
 function dateField(row, field, optional = false) {

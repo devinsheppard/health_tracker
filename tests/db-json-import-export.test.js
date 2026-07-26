@@ -201,3 +201,47 @@ test('imports older full JSON exports without workout templates', () => {
   assert.equal(imported.data.lab_results[0].unit, null);
   assert.equal(imported.data.lab_results[0].catalog_source, null);
 });
+
+test('exports and imports outdoor weather snapshots while legacy rows stay valid', () => {
+  db.init(tempUserData());
+  db.addRow('workout_sessions', {
+    date: '2026-07-01',
+    workout_time: '14:30',
+    duration: 60,
+    effort: 'moderate',
+    environment: 'outdoor',
+    location: 'Chicago, Illinois, United States',
+    temperature_f: 96,
+    humidity_percent: 60,
+    wind_mph: 10,
+    heat_index_f: 114.3,
+    effective_temperature_f: 114.3,
+    weather_source: 'Open-Meteo (historical)',
+    weather_is_automatic: 1,
+    weather_retrieved_at: '2026-07-02T00:00:00.000Z',
+    environmental_load: 'Extreme',
+    calorie_adjustment_percent: 6,
+    base_calories: 500,
+    final_calories: 530,
+    safety_warnings: '["Extreme heat. Increase hydration and monitor exertion."]',
+    environmental_data: '{"schemaVersion":1}',
+    notes: 'outdoor lift'
+  });
+  db.addRow('workout_sessions', {
+    date: '2026-07-02',
+    duration: 30,
+    effort: 'light',
+    notes: 'legacy-style row'
+  });
+
+  const imported = db.importFullJson(db.exportFullJson());
+  const outdoor = imported.data.workout_sessions.find((row) => row.environment === 'outdoor');
+  const legacy = imported.data.workout_sessions.find((row) => !row.environment);
+
+  assert.equal(outdoor.temperature_f, 96);
+  assert.equal(outdoor.base_calories, 500);
+  assert.equal(outdoor.final_calories, 530);
+  assert.equal(outdoor.weather_is_automatic, 1);
+  assert.equal(legacy.environment, null);
+  assert.equal(legacy.final_calories, null);
+});

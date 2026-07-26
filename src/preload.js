@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('healthApi', {
   update: (table, id, row) => ipcRenderer.invoke('data:update', table, id, row),
   delete: (table, id) => ipcRenderer.invoke('data:delete', table, id),
   clearAll: () => ipcRenderer.invoke('data:clearAll'),
+  getWeatherForWorkout: (request) => ipcRenderer.invoke('weather:getForWorkout', request),
   backup: () => ipcRenderer.invoke('db:backup'),
   restore: () => ipcRenderer.invoke('db:restore'),
   exportJson: (payload) => ipcRenderer.invoke('app:exportJson', payload),

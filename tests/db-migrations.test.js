@@ -39,7 +39,8 @@ test('initializes a new database at the current schema version', () => {
       { version: 7, name: 'daily_step_log' },
       { version: 8, name: 'daily_ledger_step_totals' },
       { version: 9, name: 'blood_pressure_heart_rate' },
-      { version: 10, name: 'carry_forward_effective_weight' }
+      { version: 10, name: 'carry_forward_effective_weight' },
+      { version: 11, name: 'outdoor_environmental_conditions' }
     ]);
     assert.equal(raw.prepare('SELECT COUNT(*) AS count FROM profile').get().count, 1);
     assert.equal(raw.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name = 'workout_templates'").get().count, 1);
@@ -48,6 +49,11 @@ test('initializes a new database at the current schema version', () => {
     assert.equal(raw.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name = 'blood_pressure_readings'").get().count, 1);
     const activityColumns = raw.prepare('PRAGMA table_info(activities)').all();
     assert.equal(activityColumns.find((column) => column.name === 'source_session_id').type, 'INTEGER');
+    assert.equal(activityColumns.find((column) => column.name === 'environment').type, 'TEXT');
+    assert.equal(activityColumns.find((column) => column.name === 'final_calories').type, 'REAL');
+    const workoutColumns = raw.prepare('PRAGMA table_info(workout_sessions)').all().map((column) => column.name);
+    assert.equal(workoutColumns.includes('temperature_f'), true);
+    assert.equal(workoutColumns.includes('environmental_data'), true);
     const labColumns = raw.prepare('PRAGMA table_info(lab_results)').all().map((column) => column.name);
     assert.equal(labColumns.includes('test_category'), true);
     assert.equal(labColumns.includes('unit'), true);

@@ -6,6 +6,7 @@ const labCatalogTools = window.HealthLabCatalog;
 const trendTools = window.HealthTrends;
 const weightTools = window.HealthWeight;
 const ui = window.HealthUi;
+const environmental = window.HealthEnvironmental;
 const {
   n,
   leanBodyMass,
@@ -24,6 +25,7 @@ const {
   plankCaloriesForExercise,
   lifetimePounds: calculateLifetimePounds
 } = calc;
+const { applyEnvironmentalAdjustment } = environmental;
 const {
   escapeHtml: esc,
   attribute: attr,
@@ -151,7 +153,10 @@ function dailyBurn(date = today()) {
   const workoutActivityBurn = todayRows('activities', date).filter((row) => row.kind === 'workout').reduce((sum, row) => sum + n(row.calories), 0);
   const unlinkedWorkoutBurn = (state.workout_sessions || [])
     .filter((session) => session.date === date && !workoutActivityForSession(session.id))
-    .reduce((sum, session) => sum + n(workoutCalorieEstimate(session, exercisesForSession(session.id)).calories), 0);
+    .reduce((sum, session) => {
+      const estimate = workoutCalorieEstimate(session, exercisesForSession(session.id));
+      return sum + (session.final_calories === null || session.final_calories === undefined ? n(estimate.calories) : n(session.final_calories));
+    }, 0);
   const workoutBurn = workoutActivityBurn + unlinkedWorkoutBurn;
   return { activityBurn, workoutBurn, stepBurn, steps: n(steps?.steps), tdee: bmr(date) + activityBurn + workoutBurn };
 }
@@ -547,15 +552,19 @@ function foodForm() {
 function workoutSessionForm(row = null) {
   const draft = row ? row : workoutSessionDraft;
   const estimate = workoutCalorieEstimate(draft, draftWorkoutExercises);
+  const baseCalories = row?.base_calories ?? estimate.calories;
   return `<form id="workoutSessionForm">
     ${row ? `<input type="hidden" name="id" value="${attr(row.id)}">` : ''}
     ${fields([
       ['date', 'Date', 'date', draft?.date || today()],
+      ['workout_time', 'Workout time', 'time', draft?.workout_time || nowTime()],
+      ['environment', 'Environment', 'select', draft?.environment || 'indoor', ['indoor', 'outdoor']],
       ['pre_glucose', 'Pre-workout glucose', 'number', draft?.pre_glucose || ''],
       ['post_glucose', 'Post-workout glucose', 'number', draft?.post_glucose || ''],
       ['duration', 'Duration (minutes)', 'number', draft?.duration || ''],
       ['effort', 'Effort', 'select', draft?.effort || 'moderate', ['light', 'moderate', 'vigorous']]
     ])}
+    ${weatherSection(draft, baseCalories)}
     <label>Notes<textarea name="notes">${esc(draft?.notes || '')}</textarea></label>
     ${row ? '' : `
       <div class="subpanel">
@@ -672,19 +681,65 @@ function workoutTemplatesPanel() {
   return `${saveForm}${table(['Name', 'Duration', 'Effort', 'Exercises', 'Actions'], templateRows)}`;
 }
 
+function weatherSection(values = {}, baseCalories = 0) {
+  const environment = values.environment || 'indoor';
+  const result = applyEnvironmentalAdjustment(baseCalories, { ...values, environment });
+  const warnings = result.safety_warnings || [];
+  const source = values.weather_source || (environment === 'outdoor' ? 'Manual' : '');
+  return `
+    <section class="subpanel weather-section ${environment === 'outdoor' ? '' : 'weather-hidden'}" data-weather-section>
+      <h3>Weather</h3>
+      <p class="muted">Weather is stored with this entry so its calorie result will not change later.</p>
+      ${fields([
+        ['location', 'Workout location', 'text', values.location || ''],
+        ['temperature_f', 'Temperature (°F)', 'number', values.temperature_f ?? ''],
+        ['humidity_percent', 'Humidity (%)', 'number', values.humidity_percent ?? ''],
+        ['wind_mph', 'Wind speed (mph)', 'number', values.wind_mph ?? '']
+      ])}
+      <input type="hidden" name="weather_source" value="${attr(source)}">
+      <input type="hidden" name="weather_is_automatic" value="${attr(values.weather_is_automatic || 0)}">
+      <input type="hidden" name="weather_retrieved_at" value="${attr(values.weather_retrieved_at || '')}">
+      <div class="actions">
+        <button class="ghost-button" data-fetch-weather type="button">Retrieve weather automatically</button>
+        <span class="muted" data-weather-source>${esc(source ? `Source: ${source}` : 'Manual entry')}</span>
+      </div>
+      <div class="grid four weather-summary">
+        ${weatherMetric('Heat Index', result.heat_index_f, '°F', 'heat-index')}
+        ${weatherMetric('Wind Chill', result.wind_chill_f, '°F', 'wind-chill')}
+        ${weatherMetric('Environmental Load', result.environmental_load || '--', '', 'environmental-load')}
+        ${weatherMetric('Calorie Adjustment', result.calorie_adjustment_percent, '%', 'calorie-adjustment')}
+      </div>
+      <div class="alert">
+        Final calories: <strong data-final-calories>${fmt(result.final_calories)} cal</strong>
+        <span class="muted"> after the normal ${fmt(result.base_calories)} calorie calculation</span>
+      </div>
+      <div data-weather-warnings>${warnings.map((warning) => `<div class="alert warn">${esc(warning)}</div>`).join('')}</div>
+    </section>
+  `;
+}
+
+function weatherMetric(label, value, suffix, key) {
+  const display = typeof value === 'number' ? `${fmt(value, 1)}${suffix}` : `${value}${suffix}`;
+  return `<article class="metric compact-metric"><span>${esc(label)}</span><strong data-weather-${attr(key)}>${esc(display)}</strong></article>`;
+}
+
 function activityForm(row = null) {
   const names = [...new Set([row?.name, ...Object.keys(activities)].filter(Boolean))];
+  const baseCalories = row?.base_calories ?? row?.calories ?? 0;
   return `<form id="activityForm">
     ${row ? `<input type="hidden" name="id" value="${attr(row.id)}">` : ''}
     <input type="hidden" name="kind" value="${attr(row?.kind || 'activity')}">
     <input type="hidden" name="source_session_id" value="${attr(row?.source_session_id || '')}">
     ${fields([
       ['date', 'Date', 'date', row?.date || today()],
+      ['workout_time', 'Activity time', 'time', row?.workout_time || nowTime()],
+      ['environment', 'Environment', 'select', row?.environment || 'indoor', ['indoor', 'outdoor']],
       ['name', 'Activity', 'select', row?.name || 'Slow walking', names],
       ['met', 'MET', 'number', row?.met || activities['Slow walking']],
       ['duration', 'Duration (minutes)', 'number', row?.duration || ''],
-      ['calories', 'Calories', 'number', row?.calories || '']
+      ['calories', 'Base calories', 'number', baseCalories || '']
     ])}
+    ${weatherSection(row || {}, baseCalories)}
     <label>Notes<textarea name="notes">${esc(row?.notes || '')}</textarea></label>
     <div class="actions">
       <button class="primary-button">${row ? 'Update activity' : 'Save activity'}</button>
@@ -908,6 +963,11 @@ function bindWorkoutSessionForm() {
   const form = document.getElementById('workoutSessionForm');
   const groupSelect = form.elements.ex_muscle_group;
   const exerciseSelect = form.elements.ex_exercise;
+  bindWeatherFields(form, () => {
+    const sessionId = Number(form.elements.id?.value);
+    const exercises = sessionId ? exercisesForSession(sessionId) : draftWorkoutExercises;
+    return workoutCalorieEstimate(workoutSessionBody(formData(form)), exercises).calories;
+  });
   form.addEventListener('input', () => {
     if (!form.elements.id) {
       workoutSessionDraft = formData(form);
@@ -956,15 +1016,20 @@ function bindWorkoutSessionForm() {
       delete body.id;
       const estimate = workoutCalorieEstimate(body, draftWorkoutExercises);
       if (!n(body.duration) && estimate.duration) body.duration = estimate.duration;
+      const baseCalories = sessionId
+        ? workoutCalorieEstimate(body, exercisesForSession(sessionId)).calories
+        : estimate.calories;
+      Object.assign(body, environmentalRecord(body, baseCalories));
       const met = workoutMet(body.effort);
       const activity = {
         date: body.date,
         name: `Resistance training (${body.effort})`,
         met,
         duration: body.duration,
-        calories: sessionId ? workoutCalorieEstimate(body, exercisesForSession(sessionId)).calories : estimate.calories,
+        calories: body.final_calories,
         notes: body.notes,
-        kind: 'workout'
+        kind: 'workout',
+        ...environmentalFieldsFrom(body)
       };
       if (sessionId) {
         await api.update('workout_sessions', sessionId, body);
@@ -1083,22 +1148,29 @@ function bindWorkoutActions() {
 
 function bindActivityForm() {
   const form = document.getElementById('activityForm');
+  bindWeatherFields(form, () => n(form.elements.calories.value));
   form.elements.name.addEventListener('change', () => {
     if (activities[form.elements.name.value]) form.elements.met.value = activities[form.elements.name.value];
     form.elements.calories.value = fmt(metCalories(form.elements.met.value, form.elements.duration.value, form.elements.date.value));
+    updateWeatherPreview(form, n(form.elements.calories.value));
   });
   form.elements.met.addEventListener('input', () => {
     form.elements.calories.value = fmt(metCalories(form.elements.met.value, form.elements.duration.value, form.elements.date.value));
+    updateWeatherPreview(form, n(form.elements.calories.value));
   });
+  form.elements.calories.addEventListener('input', () => updateWeatherPreview(form, n(form.elements.calories.value)));
   form.elements.duration.addEventListener('input', () => {
     form.elements.calories.value = fmt(metCalories(form.elements.met.value, form.elements.duration.value, form.elements.date.value));
+    updateWeatherPreview(form, n(form.elements.calories.value));
   });
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     const body = formData(form);
     const activityId = Number(body.id);
     delete body.id;
-    body.calories = n(body.calories) || metCalories(body.met, body.duration, body.date);
+    const baseCalories = n(body.calories) || metCalories(body.met, body.duration, body.date);
+    Object.assign(body, environmentalRecord(body, baseCalories));
+    body.calories = body.final_calories;
     body.kind = body.kind || 'activity';
     await save(() => {
       if (activityId) {
@@ -1307,6 +1379,126 @@ function formData(form) {
   return Object.fromEntries(new FormData(form).entries());
 }
 
+function environmentalRecord(body, baseCalories) {
+  const environment = body.environment || 'indoor';
+  if (environment !== 'outdoor') {
+    return {
+      environment: 'indoor',
+      location: null,
+      temperature_f: null,
+      humidity_percent: null,
+      wind_mph: null,
+      heat_index_f: null,
+      wind_chill_f: null,
+      effective_temperature_f: null,
+      weather_source: null,
+      weather_is_automatic: 0,
+      weather_retrieved_at: null,
+      environmental_load: null,
+      calorie_adjustment_percent: 0,
+      base_calories: baseCalories,
+      final_calories: baseCalories,
+      safety_warnings: '[]',
+      environmental_data: JSON.stringify({ schemaVersion: 1 })
+    };
+  }
+  const result = applyEnvironmentalAdjustment(baseCalories, { ...body, environment });
+  return {
+    environment,
+    workout_time: body.workout_time,
+    location: body.location,
+    temperature_f: body.temperature_f,
+    humidity_percent: body.humidity_percent,
+    wind_mph: body.wind_mph,
+    heat_index_f: result.heat_index_f,
+    wind_chill_f: result.wind_chill_f,
+    effective_temperature_f: result.effective_temperature_f,
+    weather_source: body.weather_source || 'Manual',
+    weather_is_automatic: n(body.weather_is_automatic) ? 1 : 0,
+    weather_retrieved_at: body.weather_retrieved_at || null,
+    environmental_load: result.environmental_load,
+    calorie_adjustment_percent: result.calorie_adjustment_percent,
+    base_calories: result.base_calories,
+    final_calories: result.final_calories,
+    safety_warnings: JSON.stringify(result.safety_warnings),
+    environmental_data: JSON.stringify({ schemaVersion: 1 })
+  };
+}
+
+function environmentalFieldsFrom(row) {
+  const fields = [
+    'environment', 'workout_time', 'location', 'temperature_f', 'humidity_percent',
+    'wind_mph', 'heat_index_f', 'wind_chill_f', 'effective_temperature_f',
+    'weather_source', 'weather_is_automatic', 'weather_retrieved_at',
+    'environmental_load', 'calorie_adjustment_percent', 'base_calories',
+    'final_calories', 'safety_warnings', 'environmental_data'
+  ];
+  return Object.fromEntries(fields.map((field) => [field, row[field]]));
+}
+
+function bindWeatherFields(form, getBaseCalories) {
+  const environmentSelect = form.elements.environment;
+  if (!environmentSelect) return;
+  const weatherSectionElement = form.querySelector('[data-weather-section]');
+  const setVisibility = () => weatherSectionElement?.classList.toggle('weather-hidden', environmentSelect.value !== 'outdoor');
+  environmentSelect.addEventListener('change', () => {
+    setVisibility();
+    updateWeatherPreview(form, getBaseCalories());
+  });
+  setVisibility();
+
+  for (const field of ['date', 'workout_time', 'location', 'temperature_f', 'humidity_percent', 'wind_mph']) {
+    form.elements[field]?.addEventListener('input', () => {
+      form.elements.weather_is_automatic.value = '0';
+      form.elements.weather_source.value = 'Manual';
+      form.elements.weather_retrieved_at.value = '';
+      const source = form.querySelector('[data-weather-source]');
+      if (source) source.textContent = 'Source: Manual';
+      updateWeatherPreview(form, getBaseCalories());
+    });
+  }
+
+  form.querySelector('[data-fetch-weather]')?.addEventListener('click', async () => {
+    notify('Retrieving weather...');
+    try {
+      const result = await api.getWeatherForWorkout({
+        date: form.elements.date.value,
+        time: form.elements.workout_time.value,
+        location: form.elements.location.value
+      });
+      for (const field of ['location', 'temperature_f', 'humidity_percent', 'wind_mph', 'weather_source', 'weather_is_automatic', 'weather_retrieved_at']) {
+        form.elements[field].value = result[field] ?? '';
+      }
+      const source = form.querySelector('[data-weather-source]');
+      if (source) source.textContent = `Source: ${result.weather_source}`;
+      updateWeatherPreview(form, getBaseCalories());
+      notify('Weather retrieved');
+    } catch (error) {
+      notify(error.message || 'Weather unavailable; enter conditions manually.');
+    }
+  });
+  updateWeatherPreview(form, getBaseCalories());
+}
+
+function updateWeatherPreview(form, baseCalories) {
+  const values = formData(form);
+  const result = applyEnvironmentalAdjustment(baseCalories, values);
+  setWeatherPreviewValue(form, 'heat-index', result.heat_index_f, '°F');
+  setWeatherPreviewValue(form, 'wind-chill', result.wind_chill_f, '°F');
+  setWeatherPreviewValue(form, 'environmental-load', result.environmental_load || '--');
+  setWeatherPreviewValue(form, 'calorie-adjustment', result.calorie_adjustment_percent, '%');
+  const final = form.querySelector('[data-final-calories]');
+  if (final) final.textContent = `${fmt(result.final_calories)} cal`;
+  const warnings = form.querySelector('[data-weather-warnings]');
+  if (warnings) warnings.innerHTML = result.safety_warnings.map((warning) => `<div class="alert warn">${esc(warning)}</div>`).join('');
+}
+
+function setWeatherPreviewValue(form, key, value, suffix = '') {
+  const target = form.querySelector(`[data-weather-${key}]`);
+  if (!target) return;
+  target.textContent = typeof value === 'number' ? `${fmt(value, 1)}${suffix}` : `${value}${suffix}`;
+}
+
 function workoutSessionBody(body) {
   const cleanBody = { ...body };
   for (const key of Object.keys(cleanBody)) {
@@ -1355,6 +1547,7 @@ function updateWorkoutEstimate(form) {
   const estimate = workoutCalorieEstimate(workoutSessionBody(formData(form)), draftWorkoutExercises);
   const target = document.getElementById('workoutEstimate');
   if (target) target.textContent = `${fmt(estimate.calories)} cal`;
+  updateWeatherPreview(form, estimate.calories);
 }
 
 async function save(fn) {
@@ -1488,8 +1681,9 @@ function lifetimePounds() {
 
 function workoutSessionsTable() {
   const exercises = state.workout_exercises || [];
-  return table(['Date', 'Duration', 'Effort', 'Pounds', 'Glucose', 'Notes', 'Actions'], (state.workout_sessions || []).map((s) => [
+  return table(['Date', 'Environment', 'Duration', 'Effort', 'Pounds', 'Glucose', 'Notes', 'Actions'], (state.workout_sessions || []).map((s) => [
     s.date,
+    s.environment ? `${capitalize(s.environment)}${s.environmental_load ? ` / ${s.environmental_load}` : ''}` : 'Legacy',
     `${fmt(s.duration)} min`,
     s.effort,
     fmt(exercises.filter((e) => e.session_id === s.id).reduce((sum, e) => sum + effectiveExercisePounds(e, s.date), 0)),
@@ -1561,7 +1755,7 @@ function activityDisplayRows() {
         name: `Resistance training (${session.effort || 'moderate'})`,
         met: workoutMet(session.effort),
         duration: session.duration || estimate.duration,
-        calories: estimate.calories,
+        calories: session.final_calories === null || session.final_calories === undefined ? estimate.calories : session.final_calories,
         notes: session.notes,
         source_session_id: session.id,
         synthetic: true
@@ -1598,11 +1792,12 @@ function activityDetailScreen(row) {
         <h2>${esc(title)}</h2>
       </div>
       ${metrics([
-        ['Calories', fmt(row.calories), row.kind === 'workout' ? 'Estimated workout burn' : 'MET activity burn'],
+        ['Calories', fmt(row.calories), row.calorie_adjustment_percent ? `Includes +${fmt(row.calorie_adjustment_percent)}% environmental adjustment` : row.kind === 'workout' ? 'Estimated workout burn' : 'MET activity burn'],
         ['Duration', `${fmt(row.duration)} min`, `MET ${fmt(row.met, 1)}`],
         ['Date', row.date || '--', row.name || '--'],
         ['Source', row.kind === 'workout' ? 'Workout' : 'Activity', linked]
       ])}
+      ${environmentDetails(session || row)}
       ${panel('Notes', `<div class="alert">${esc(row.notes || 'No notes saved.')}</div>`)}
       <div class="actions">
         <button class="primary-button" data-edit-detail="${attr(row.id)}" type="button">EDIT</button>
@@ -1613,6 +1808,43 @@ function activityDetailScreen(row) {
       ${workoutExercises}
     </div>
   `;
+}
+
+function environmentDetails(row) {
+  if (!row?.environment) {
+    return panel('Environment', '<div class="alert">Legacy entry — original calories are preserved with no environmental adjustment.</div>');
+  }
+  if (row.environment !== 'outdoor') {
+    return panel('Environment', '<div class="alert">Indoor exercise — no environmental calorie adjustment.</div>');
+  }
+  const warnings = parseSafetyWarnings(row.safety_warnings);
+  return panel('Weather', `
+    ${metrics([
+      ['Temperature', `${fmt(row.temperature_f, 1)}°F`, row.location || 'Saved workout location'],
+      ['Humidity', `${fmt(row.humidity_percent, 1)}%`, `Wind ${fmt(row.wind_mph, 1)} mph`],
+      ['Heat Index', row.heat_index_f == null ? '--' : `${fmt(row.heat_index_f, 1)}°F`, 'Used when applicable'],
+      ['Wind Chill', row.wind_chill_f == null ? '--' : `${fmt(row.wind_chill_f, 1)}°F`, 'Used when applicable'],
+      ['Environmental Load', row.environmental_load || '--', `Effective temperature ${fmt(row.effective_temperature_f, 1)}°F`],
+      ['Calorie Adjustment', `+${fmt(row.calorie_adjustment_percent, 1)}%`, `${fmt(row.base_calories)} base → ${fmt(row.final_calories)} final`],
+      ['Weather Source', row.weather_source || 'Manual', n(row.weather_is_automatic) ? 'Automatically retrieved' : 'Manually entered'],
+      ['Workout Time', row.workout_time || '--', row.weather_retrieved_at ? `Retrieved ${new Date(row.weather_retrieved_at).toLocaleString()}` : 'Saved conditions']
+    ])}
+    ${warnings.map((warning) => `<div class="alert warn">${esc(warning)}</div>`).join('')}
+  `);
+}
+
+function parseSafetyWarnings(value) {
+  try {
+    const warnings = JSON.parse(value || '[]');
+    return Array.isArray(warnings) ? warnings : [];
+  } catch {
+    return [];
+  }
+}
+
+function capitalize(value) {
+  const text = String(value || '');
+  return text ? `${text[0].toUpperCase()}${text.slice(1)}` : '';
 }
 
 function workoutSessionForActivity(row) {

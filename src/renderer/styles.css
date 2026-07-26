@@ -269,6 +269,27 @@ h3 {
   border-bottom: 1px solid var(--line);
 }
 
+.weather-hidden {
+  display: none;
+}
+
+.weather-summary {
+  margin-top: 2px;
+}
+
+.compact-metric {
+  min-height: 82px;
+}
+
+.compact-metric strong {
+  font-size: 20px;
+}
+
+[data-weather-warnings] {
+  display: grid;
+  gap: 8px;
+}
+
 .metric {
   min-height: 106px;
   padding: 14px;

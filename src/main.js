@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog, nativeTheme, screen } = require('el
 const path = require('path');
 const fs = require('fs');
 const db = require('./db');
+const weather = require('./weather');
 
 let mainWindow;
 
@@ -30,14 +31,23 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 }
 
-app.whenReady().then(() => {
-  db.init(app.getPath('userData'));
-  createWindow();
+app.whenReady()
+  .then(() => {
+    db.init(app.getPath('userData'));
+    createWindow();
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+  })
+  .catch((error) => {
+    console.error('Application startup failed:', error);
+    dialog.showErrorBox(
+      'My Health Tracker could not start',
+      `The application encountered an error during startup and must close.\n\n${error.message}`
+    );
+    app.quit();
   });
-});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
@@ -52,6 +62,7 @@ ipcMain.handle('data:add', (_event, table, row) => db.addRow(table, row));
 ipcMain.handle('data:update', (_event, table, id, row) => db.updateRow(table, id, row));
 ipcMain.handle('data:delete', (_event, table, id) => db.deleteRow(table, id));
 ipcMain.handle('data:clearAll', () => db.clearAll());
+ipcMain.handle('weather:getForWorkout', (_event, request) => weather.weatherForWorkout(request));
 
 ipcMain.handle('db:backup', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {

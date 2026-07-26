@@ -38,6 +38,7 @@ Recommended habit: make a database backup before installing a new version, befor
 - Workout sessions, exercise rows, workout templates, bodyweight handling, and a 1,000,000 lb lifetime lifting challenge
 - Duration-based plank exercise family with conservative MET-based calorie estimates
 - Activity tracking with linked workout burn
+- Indoor/outdoor exercise tracking with stored weather snapshots, automatic historical weather lookup, manual weather entry, environmental load, and informational safety notices
 - Step tracking with calorie estimates and walking double-count prevention
 - Weight, body fat, lean body mass, sleep, medication, and lab tracking
 - Search-first lab test catalog with common built-in tests, aliases, editable units/reference ranges, and personal custom tests
@@ -61,7 +62,7 @@ Add screenshots to GitHub Releases or repository documentation when preparing a 
 - Calorie burn, TDEE, A1C, and workout estimates are approximations.
 - Built-in lab reference ranges are editable defaults only. Use the range from your actual lab report when it differs.
 - When steps are logged for a day, manually logged walking activities remain visible but are not added again to TDEE.
-- Weather, temperature, humidity, wearable data, and cloud sync are not integrated.
+- Wearable data and cloud sync are not integrated. Automatic weather lookup requires internet access; manual weather entry remains available offline.
 - Data is local to the installed Windows user unless manually backed up, exported, or restored.
 - Installer artifacts in `release/` are local build outputs and should be published through GitHub Releases, not committed.
 
@@ -110,6 +111,19 @@ The installer version comes from `package.json` and `package-lock.json`. For a n
 Upgrades preserve user data because the installer keeps the same Electron app identity and the SQLite database remains in the current Windows user's `%APPDATA%\My Health Tracker\` user-data directory. Uninstalling removes installed program files but does not silently remove that user-created database.
 
 ## Changelog
+
+### v1.2.0
+
+- Added indoor/outdoor selection to workouts and activities; indoor and legacy entries keep their original calorie behavior.
+- Added automatic current/historical Open-Meteo retrieval by date, time, and location with offline manual temperature, humidity, and wind entry.
+- Added permanently stored heat index, wind chill, effective temperature, weather source, environmental load, safety notices, base calories, adjustment percentage, and final calories.
+- Applied one configurable post-calculation environmental adjustment without changing the existing MET, workout, plank, step, lifting-challenge, report, chart, or export calculations.
+- Added schema migration and full JSON compatibility so historical entries without weather remain unchanged.
+
+### v1.1.43
+
+- Fixed Windows startup by rebuilding `better-sqlite3` for Electron before every release build and verifying the packaged native module before accepting the installer.
+- Added a visible startup error followed by a clean exit so dependency or database failures cannot leave an invisible background process running.
 
 ### v1.1.42
 
