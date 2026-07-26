@@ -34,3 +34,15 @@ test('weather context edits mark retrieved conditions as manual before saving', 
   assert.match(binding, /weather_is_automatic\.value = '0'/);
   assert.match(binding, /weather_source\.value = 'Manual'/);
 });
+
+test('activity save errors are visible and outdoor weather fields are required', () => {
+  const activityForm = appJs.slice(appJs.indexOf('function activityForm'), appJs.indexOf('function stepForm'));
+  const activityBinding = appJs.slice(appJs.indexOf('function bindActivityForm'), appJs.indexOf('function bindStepForm'));
+  const weatherBinding = appJs.slice(appJs.indexOf('function bindWeatherFields'), appJs.indexOf('function updateWeatherPreview'));
+
+  assert.match(activityForm, /data-activity-error/);
+  assert.match(activityForm, /type="submit"/);
+  assert.match(activityBinding, /activityValidationError\(body\)/);
+  assert.match(activityBinding, /form\.querySelector\('\[data-activity-error\]'\)/);
+  assert.match(weatherBinding, /form\.elements\[field\]\.required = isOutdoor/);
+});

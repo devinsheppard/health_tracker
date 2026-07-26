@@ -689,7 +689,7 @@ function weatherSection(values = {}, baseCalories = 0) {
   return `
     <section class="subpanel weather-section ${environment === 'outdoor' ? '' : 'weather-hidden'}" data-weather-section>
       <h3>Weather</h3>
-      <p class="muted">Weather is stored with this entry so its calorie result will not change later.</p>
+      <p class="muted">Retrieve weather automatically or complete location, temperature, humidity, and wind speed before saving. Weather is stored with this entry so its calorie result will not change later.</p>
       ${fields([
         ['location', 'Workout location', 'text', values.location || ''],
         ['temperature_f', 'Temperature (°F)', 'number', values.temperature_f ?? ''],
@@ -741,8 +741,9 @@ function activityForm(row = null) {
     ])}
     ${weatherSection(row || {}, baseCalories)}
     <label>Notes<textarea name="notes">${esc(row?.notes || '')}</textarea></label>
+    <div class="alert bad form-error weather-hidden" data-activity-error role="alert" aria-live="polite"></div>
     <div class="actions">
-      <button class="primary-button">${row ? 'Update activity' : 'Save activity'}</button>
+      <button class="primary-button" type="submit">${row ? 'Update activity' : 'Save activity'}</button>
       ${row ? '<button class="ghost-button" data-cancel-activity-edit type="button">Cancel edit</button>' : ''}
     </div>
   </form>`;
@@ -1149,6 +1150,10 @@ function bindWorkoutActions() {
 function bindActivityForm() {
   const form = document.getElementById('activityForm');
   bindWeatherFields(form, () => n(form.elements.calories.value));
+  form.addEventListener('invalid', () => {
+    const activityError = activityValidationError(formData(form));
+    if (activityError) showActivityError(form, activityError.message);
+  }, true);
   form.elements.name.addEventListener('change', () => {
     if (activities[form.elements.name.value]) form.elements.met.value = activities[form.elements.name.value];
     form.elements.calories.value = fmt(metCalories(form.elements.met.value, form.elements.duration.value, form.elements.date.value));
@@ -1166,6 +1171,12 @@ function bindActivityForm() {
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     const body = formData(form);
+    const activityError = activityValidationError(body);
+    if (activityError) {
+      showActivityError(form, activityError.message);
+      form.elements[activityError.field]?.focus();
+      return;
+    }
     const activityId = Number(body.id);
     delete body.id;
     const baseCalories = n(body.calories) || metCalories(body.met, body.duration, body.date);
@@ -1180,7 +1191,7 @@ function bindActivityForm() {
       }
       body.kind = 'activity';
       return api.add('activities', body);
-    });
+    }, form.querySelector('[data-activity-error]'));
   });
 }
 
@@ -1440,7 +1451,13 @@ function bindWeatherFields(form, getBaseCalories) {
   const environmentSelect = form.elements.environment;
   if (!environmentSelect) return;
   const weatherSectionElement = form.querySelector('[data-weather-section]');
-  const setVisibility = () => weatherSectionElement?.classList.toggle('weather-hidden', environmentSelect.value !== 'outdoor');
+  const setVisibility = () => {
+    const isOutdoor = environmentSelect.value === 'outdoor';
+    weatherSectionElement?.classList.toggle('weather-hidden', !isOutdoor);
+    for (const field of ['location', 'temperature_f', 'humidity_percent', 'wind_mph']) {
+      if (form.elements[field]) form.elements[field].required = isOutdoor;
+    }
+  };
   environmentSelect.addEventListener('change', () => {
     setVisibility();
     updateWeatherPreview(form, getBaseCalories());
@@ -1499,6 +1516,25 @@ function setWeatherPreviewValue(form, key, value, suffix = '') {
   target.textContent = typeof value === 'number' ? `${fmt(value, 1)}${suffix}` : `${value}${suffix}`;
 }
 
+function activityValidationError(body) {
+  if (body.environment !== 'outdoor') return null;
+  const required = [
+    ['location', 'Enter the outdoor activity location or retrieve weather automatically.'],
+    ['temperature_f', 'Enter the outdoor temperature or retrieve weather automatically.'],
+    ['humidity_percent', 'Enter the outdoor humidity or retrieve weather automatically.'],
+    ['wind_mph', 'Enter the outdoor wind speed or retrieve weather automatically.']
+  ];
+  const missing = required.find(([field]) => body[field] === undefined || String(body[field]).trim() === '');
+  return missing ? { field: missing[0], message: missing[1] } : null;
+}
+
+function showActivityError(form, message) {
+  const target = form.querySelector('[data-activity-error]');
+  if (!target) return;
+  target.textContent = message;
+  target.classList.remove('weather-hidden');
+}
+
 function workoutSessionBody(body) {
   const cleanBody = { ...body };
   for (const key of Object.keys(cleanBody)) {
@@ -1550,14 +1586,19 @@ function updateWorkoutEstimate(form) {
   updateWeatherPreview(form, estimate.calories);
 }
 
-async function save(fn) {
+async function save(fn, errorTarget = null) {
   document.getElementById('saveStatus').textContent = 'Saving...';
   try {
     await fn();
     document.getElementById('saveStatus').textContent = 'Saved';
     await refresh();
   } catch (error) {
-    document.getElementById('saveStatus').textContent = error.message || 'Save failed';
+    const message = error.message || 'Save failed';
+    document.getElementById('saveStatus').textContent = message;
+    if (errorTarget) {
+      errorTarget.textContent = message;
+      errorTarget.classList.remove('weather-hidden');
+    }
   }
 }
 

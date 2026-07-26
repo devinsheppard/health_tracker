@@ -112,6 +112,12 @@ Upgrades preserve user data because the installer keeps the same Electron app id
 
 ## Changelog
 
+### v1.2.1
+
+- Fixed Activity form failures appearing to do nothing by displaying save and validation errors directly in the form.
+- Made outdoor location, temperature, humidity, and wind visibly required while keeping indoor activity saving unchanged.
+- Added an explicit Activity submit button contract and renderer regression coverage.
+
 ### v1.2.0
 
 - Added indoor/outdoor selection to workouts and activities; indoor and legacy entries keep their original calorie behavior.
