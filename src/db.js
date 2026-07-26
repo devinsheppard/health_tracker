@@ -6,7 +6,7 @@ const calculations = require('./shared/calculations');
 let db;
 let dbPath;
 let dataDir;
-const SCHEMA_VERSION = 9;
+const SCHEMA_VERSION = 10;
 
 const allowedTables = new Set([
   'glucose_readings',
@@ -247,6 +247,11 @@ const migrations = [
     version: 9,
     name: 'blood_pressure_heart_rate',
     up: createBloodPressureSchema
+  },
+  {
+    version: 10,
+    name: 'carry_forward_effective_weight',
+    up: rebuildDailyLedger
   }
 ];
 
@@ -778,8 +783,8 @@ function dailyLedgerRow(date) {
     ORDER BY id DESC
     LIMIT 1
   `, [date]) || {} : {};
-  const profile = one('SELECT current_weight, height_ft, height_in FROM profile WHERE id = 1') || {};
-  const weightForSteps = clean(weight.weight) || (hasWeightHistory() ? null : clean(profile.current_weight));
+  const profile = one('SELECT height_ft, height_in FROM profile WHERE id = 1') || {};
+  const weightForSteps = clean(weight.weight);
   const stepCalories = calculations.stepCalories(step.steps, weightForSteps, profile.height_ft, profile.height_in);
   const hasStepCalories = n(step.steps) > 0 && n(stepCalories) > 0;
   const activity = all('SELECT name, duration, calories, kind FROM activities WHERE date = ?', [date])
@@ -799,13 +804,13 @@ function dailyLedgerRow(date) {
     WHERE date = ?
   `, [date]) || {};
   const volume = one(`
-    SELECT SUM(e.pounds) AS pounds
+    SELECT SUM(${effectiveExercisePoundsSql()}) AS pounds
     FROM workout_exercises e
     JOIN workout_sessions s ON s.id = e.session_id
     WHERE s.date = ?
   `, [date]) || {};
   const lifetime = one(`
-    SELECT SUM(e.pounds) AS pounds
+    SELECT SUM(${effectiveExercisePoundsSql()}) AS pounds
     FROM workout_exercises e
     JOIN workout_sessions s ON s.id = e.session_id
     WHERE s.date <= ?
@@ -864,8 +869,20 @@ function effectiveWeightOnOrBefore(date) {
   `, [date]);
 }
 
-function hasWeightHistory() {
-  return n(one('SELECT COUNT(*) AS count FROM weight_log')?.count) > 0;
+function effectiveExercisePoundsSql() {
+  return `
+    CASE
+      WHEN e.mode = 'bodyweight' THEN
+        COALESCE(e.sets, 0) * COALESCE(e.reps, 0) * COALESCE((
+          SELECT wl.weight
+          FROM weight_log wl
+          WHERE wl.date <= s.date
+          ORDER BY wl.date DESC, wl.id DESC
+          LIMIT 1
+        ), 0)
+      ELSE COALESCE(e.pounds, 0)
+    END
+  `;
 }
 
 function ledgerNotes(date) {

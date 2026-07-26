@@ -4,6 +4,7 @@ const html = window.HealthHtml;
 const catalog = window.HealthCatalog;
 const labCatalogTools = window.HealthLabCatalog;
 const trendTools = window.HealthTrends;
+const weightTools = window.HealthWeight;
 const ui = window.HealthUi;
 const {
   n,
@@ -33,6 +34,7 @@ const { pages, dietProfiles, activities, exerciseGroups } = catalog;
 const plankCatalog = window.HealthPlankCatalog || {};
 const { categories: labCategories, searchBuiltInTests, findBuiltInTest, normalize: normalizeLabSearch } = labCatalogTools;
 const { ledgerTrendSeries, trendDelta } = trendTools;
+const { effectiveWeightOnOrBefore } = weightTools;
 const { localDateKey, today, nowTime, fmt, age } = ui;
 
 let state = {};
@@ -118,19 +120,7 @@ function latestSteps(date = today()) {
 }
 
 function profileWeight(date = today()) {
-  const effective = effectiveWeightOnOrBefore(date);
-  if (effective?.weight) return effective.weight;
-  return latestWeight()?.weight || state.profile?.current_weight || 0;
-}
-
-function latestWeight() {
-  return [...(state.weight_log || [])].sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id)[0];
-}
-
-function effectiveWeightOnOrBefore(date = today()) {
-  return [...(state.weight_log || [])]
-    .filter((row) => row.date && row.date <= date)
-    .sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id)[0] || null;
+  return effectiveWeightOnOrBefore(state.weight_log || [], date)?.weight ?? null;
 }
 
 function average(values) {
@@ -139,10 +129,9 @@ function average(values) {
 }
 
 function lbm(profile = state.profile, date = today()) {
-  const logged = effectiveWeightOnOrBefore(date) || latestWeight();
-  const weight = logged?.weight || profile?.current_weight;
-  const bodyFat = logged?.body_fat || profile?.body_fat;
-  return leanBodyMass(weight, bodyFat) || n(profile?.lean_body_mass);
+  const logged = effectiveWeightOnOrBefore(state.weight_log || [], date);
+  if (!logged) return 0;
+  return leanBodyMass(logged.weight, logged.body_fat) || n(logged.lean_body_mass);
 }
 
 function bmr(date = today()) {
@@ -1467,7 +1456,12 @@ function exercisesForSession(sessionId) {
 }
 
 function workoutCalorieEstimate(session, exercises = []) {
-  return calculateWorkoutCalories(session, exercises, profileWeight(session?.date || today()), bmr(session?.date || today()));
+  const date = session?.date || today();
+  const effectiveExercises = exercises.map((exercise) => ({
+    ...exercise,
+    pounds: effectiveExercisePounds(exercise, date)
+  }));
+  return calculateWorkoutCalories(session, effectiveExercises, profileWeight(date), bmr(date));
 }
 
 function exerciseMode(group, exercise) {
@@ -1478,8 +1472,18 @@ function exercisePounds(row) {
   return calculateExercisePounds(row, profileWeight(row?.date || workoutSessionDraft.date || today()));
 }
 
+function effectiveExercisePounds(exercise, date = '') {
+  if (exercise?.mode !== 'bodyweight') return n(exercise?.pounds);
+  const session = (state.workout_sessions || []).find((row) => n(row.id) === n(exercise.session_id));
+  return calculateExercisePounds(exercise, profileWeight(date || session?.date || today()));
+}
+
 function lifetimePounds() {
-  return calculateLifetimePounds(state.workout_exercises || [], state.workout_sessions || [], today());
+  const exercises = (state.workout_exercises || []).map((exercise) => ({
+    ...exercise,
+    pounds: effectiveExercisePounds(exercise)
+  }));
+  return calculateLifetimePounds(exercises, state.workout_sessions || [], today());
 }
 
 function workoutSessionsTable() {
@@ -1488,7 +1492,7 @@ function workoutSessionsTable() {
     s.date,
     `${fmt(s.duration)} min`,
     s.effort,
-    fmt(exercises.filter((e) => e.session_id === s.id).reduce((sum, e) => sum + n(e.pounds), 0)),
+    fmt(exercises.filter((e) => e.session_id === s.id).reduce((sum, e) => sum + effectiveExercisePounds(e, s.date), 0)),
     `${fmt(s.pre_glucose)} / ${fmt(s.post_glucose)}`,
     s.notes || '',
     raw(`<div class="actions"><button class="mini-button" data-select-session="${attr(s.id)}" type="button">Select</button><button class="mini-button" data-edit-session="${attr(s.id)}" type="button">Edit</button>${del('workout_sessions', s.id).html}</div>`)
@@ -1497,7 +1501,7 @@ function workoutSessionsTable() {
 
 function exerciseTotalsTable() {
   const totals = {};
-  for (const row of state.workout_exercises || []) totals[row.exercise] = (totals[row.exercise] || 0) + n(row.pounds);
+  for (const row of state.workout_exercises || []) totals[row.exercise] = (totals[row.exercise] || 0) + effectiveExercisePounds(row);
   return table(['Exercise', 'Lifetime pounds'], Object.entries(totals).sort((a, b) => b[1] - a[1]).map(([name, pounds]) => [name, fmt(pounds)]));
 }
 
@@ -1626,7 +1630,7 @@ function workoutExercisesTable(sessionId, editingExercise = null) {
     fmt(exercise.reps),
     exercise.mode === 'bodyweight' ? `${fmt(bodyweightBasisForExercise(exercise))} lb bodyweight` : fmt(exercise.weight),
     exercise.mode === 'timed' ? timedExerciseSummary(exercise) : '',
-    fmt(exercise.pounds),
+    fmt(effectiveExercisePounds(exercise)),
     raw(`<div class="actions"><button class="mini-button" data-edit-exercise="${attr(exercise.id)}" type="button">Edit</button>${del('workout_exercises', exercise.id).html}</div>`)
   ]))}`;
 }
@@ -1634,7 +1638,7 @@ function workoutExercisesTable(sessionId, editingExercise = null) {
 function bodyweightBasisForExercise(exercise) {
   const reps = n(exercise.sets) * n(exercise.reps);
   const session = (state.workout_sessions || []).find((row) => n(row.id) === n(exercise.session_id));
-  return reps ? n(exercise.pounds) / reps : profileWeight(session?.date || today());
+  return reps ? effectiveExercisePounds(exercise, session?.date) / reps : profileWeight(session?.date || today());
 }
 
 function linkedWorkoutActivity(sessionId) {
@@ -1659,7 +1663,7 @@ function findLegacyWorkoutActivity(sessionId) {
 
 function weightStats() {
   const rows = [...(state.weight_log || [])].sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
-  if (!rows.length) return { current: n(state.profile?.current_weight), starting: null, change: null, bodyFatChange: null, lbmChange: null };
+  if (!rows.length) return { current: null, starting: null, change: null, bodyFatChange: null, lbmChange: null };
   const first = rows[0];
   const last = rows[rows.length - 1];
   return {

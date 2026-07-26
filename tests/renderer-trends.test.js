@@ -35,6 +35,18 @@ test('keeps carried-forward weight values in charts and rolling averages', () =>
   assert.equal(Number(series.weightAverage[4].toFixed(2)), 239.96);
 });
 
+test('keeps dates before the first recorded weight unknown instead of charting zero', () => {
+  const series = trends.ledgerTrendSeries([
+    { date: '2026-06-30', weight: null },
+    { date: '2026-07-01', weight: 240.2 },
+    { date: '2026-07-02', weight: 240.2 }
+  ], 3, 1400);
+
+  assert.deepEqual(series.weight, [null, 240.2, 240.2]);
+  assert.deepEqual(series.weightAverage, [null, 240.2, 240.2]);
+  assert.equal(series.weight.includes(0), false);
+});
+
 test('uses step-inclusive activity calories in deficit and surplus trends', () => {
   const series = trends.ledgerTrendSeries([
     { date: '2026-07-01', food_calories: 2000, activity_calories: 650, step_calories: 350, workout_calories: 250 }

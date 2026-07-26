@@ -38,7 +38,8 @@ test('initializes a new database at the current schema version', () => {
       { version: 6, name: 'lab_result_catalog_metadata' },
       { version: 7, name: 'daily_step_log' },
       { version: 8, name: 'daily_ledger_step_totals' },
-      { version: 9, name: 'blood_pressure_heart_rate' }
+      { version: 9, name: 'blood_pressure_heart_rate' },
+      { version: 10, name: 'carry_forward_effective_weight' }
     ]);
     assert.equal(raw.prepare('SELECT COUNT(*) AS count FROM profile').get().count, 1);
     assert.equal(raw.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name = 'workout_templates'").get().count, 1);
@@ -63,6 +64,47 @@ test('initializes a new database at the current schema version', () => {
   } finally {
     raw.close();
   }
+});
+
+test('migration rebuilds historical ledger rows with effective carried weights', () => {
+  const userDataPath = tempUserData();
+
+  db.init(userDataPath);
+  db.addRow('weight_log', {
+    date: '2026-07-01',
+    weight: 240.2,
+    body_fat: 25,
+    lean_body_mass: 180.15,
+    notes: 'first weight'
+  });
+  db.addRow('food_log', {
+    date: '2026-07-02',
+    meal_type: 'dinner',
+    description: 'No weigh-in day',
+    net_carbs: 5,
+    protein: 40,
+    fat: 20,
+    calories: 360
+  });
+  db.close();
+
+  const raw = openRaw(userDataPath);
+  try {
+    raw.prepare("UPDATE daily_ledger SET weight = 0, body_fat = 0, lean_body_mass = 0 WHERE date = '2026-07-02'").run();
+    raw.prepare('DELETE FROM schema_migrations WHERE version = 10').run();
+    raw.pragma('user_version = 9');
+  } finally {
+    raw.close();
+  }
+
+  db.init(userDataPath);
+  const data = db.getAllData();
+  const carried = data.daily_ledger.find((row) => row.date === '2026-07-02');
+
+  assert.equal(carried.weight, 240.2);
+  assert.equal(carried.body_fat, 25);
+  assert.equal(carried.lean_body_mass, 180.15);
+  assert.equal(data.weight_log.length, 1);
 });
 
 test('migrates an existing unversioned database without losing rows', () => {

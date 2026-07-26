@@ -177,6 +177,7 @@ test('maintains one daily ledger row with health totals for each date', () => {
 test('carries forward effective weight without inserting synthetic weight entries', () => {
   const userDataPath = tempUserData();
   db.init(userDataPath);
+  db.saveSettings({ current_weight: 300 });
 
   db.addRow('glucose_readings', {
     date: '2026-06-30',
@@ -184,6 +185,11 @@ test('carries forward effective weight without inserting synthetic weight entrie
     context: 'fasting morning',
     value: 100,
     notes: 'before first weight'
+  });
+  db.addRow('step_log', {
+    date: '2026-06-30',
+    steps: 10000,
+    notes: 'no weight exists yet'
   });
   db.addRow('weight_log', {
     date: '2026-07-01',
@@ -227,6 +233,7 @@ test('carries forward effective weight without inserting synthetic weight entrie
   const byDate = Object.fromEntries(data.daily_ledger.map((row) => [row.date, row]));
 
   assert.equal(byDate['2026-06-30'].weight, null);
+  assert.equal(byDate['2026-06-30'].step_calories, 0);
   assert.equal(byDate['2026-07-01'].weight, 240.2);
   assert.equal(byDate['2026-07-02'].weight, 240.2);
   assert.equal(byDate['2026-07-03'].weight, 240.2);
@@ -236,6 +243,73 @@ test('carries forward effective weight without inserting synthetic weight entrie
   assert.equal(byDate['2026-07-05'].body_fat, 24.8);
   assert.equal(Number(byDate['2026-07-03'].step_calories.toFixed(1)), 602.8);
   assert.equal(data.weight_log.length, 2);
+});
+
+test('recalculates bodyweight challenge volume from effective historical weight', () => {
+  const userDataPath = tempUserData();
+  db.init(userDataPath);
+
+  db.addRow('weight_log', {
+    date: '2026-07-01',
+    weight: 200,
+    body_fat: 25,
+    lean_body_mass: 150,
+    notes: ''
+  });
+  const firstSession = db.addRow('workout_sessions', {
+    date: '2026-07-03',
+    pre_glucose: null,
+    post_glucose: null,
+    duration: 30,
+    effort: 'moderate',
+    notes: ''
+  });
+  db.addRow('workout_exercises', {
+    session_id: firstSession.id,
+    muscle_group: 'Chest',
+    exercise: 'Push-ups',
+    sets: 2,
+    reps: 10,
+    weight: null,
+    seconds: null,
+    mode: 'bodyweight',
+    pounds: 0
+  });
+  db.addRow('weight_log', {
+    date: '2026-07-04',
+    weight: 190,
+    body_fat: 24,
+    lean_body_mass: 144.4,
+    notes: ''
+  });
+  const secondSession = db.addRow('workout_sessions', {
+    date: '2026-07-05',
+    pre_glucose: null,
+    post_glucose: null,
+    duration: 30,
+    effort: 'moderate',
+    notes: ''
+  });
+  db.addRow('workout_exercises', {
+    session_id: secondSession.id,
+    muscle_group: 'Chest',
+    exercise: 'Push-ups',
+    sets: 1,
+    reps: 10,
+    weight: null,
+    seconds: null,
+    mode: 'bodyweight',
+    pounds: 0
+  });
+
+  const data = db.getAllData();
+  const byDate = Object.fromEntries(data.daily_ledger.map((row) => [row.date, row]));
+
+  assert.equal(byDate['2026-07-03'].workout_volume, 4000);
+  assert.equal(byDate['2026-07-03'].lifetime_lifting_total, 4000);
+  assert.equal(byDate['2026-07-05'].workout_volume, 1900);
+  assert.equal(byDate['2026-07-05'].lifetime_lifting_total, 5900);
+  assert.equal(data.workout_exercises.every((row) => row.pounds === 0), true);
 });
 
 test('counts non-walking activity with steps while preventing walking double count', () => {
@@ -249,6 +323,13 @@ test('counts non-walking activity with steps while preventing walking double cou
     goals: 'weight loss',
     diet_type: 'keto',
     theme: 'dark'
+  });
+  db.addRow('weight_log', {
+    date: '2026-07-01',
+    weight: 220,
+    body_fat: 25,
+    lean_body_mass: 165,
+    notes: ''
   });
 
   db.addRow('step_log', { date: '2026-07-01', steps: 10000, notes: '' });

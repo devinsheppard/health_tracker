@@ -74,7 +74,7 @@ ratio = min(0.5, added_weight / body_weight)
 added_weight_multiplier = 1 + min(0.15, ratio * 0.3)
 ```
 
-Active seconds are capped at 7,200 seconds per exercise row to prevent accidental extreme estimates. Missing body weight follows the app's existing renderer fallback: most recent weight log, then profile current weight, then zero. If no body weight is available, plank calories are zero.
+Active seconds are capped at 7,200 seconds per exercise row to prevent accidental extreme estimates. Body weight uses the latest recorded weight on or before the workout date. Dates before the first recorded weight remain unknown; if no effective body weight is available, plank calories are zero.
 
 ## Weight Challenge
 

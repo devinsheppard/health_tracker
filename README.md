@@ -111,6 +111,10 @@ Upgrades preserve user data because the installer keeps the same Electron app id
 
 ## Changelog
 
+### v1.1.42
+
+- Completed the historical carry-forward conversion with an upgrade migration that automatically rebuilds existing daily ledgers, preserves unknown values before the first weigh-in, prevents charts from converting missing weights to 0 lb, and recalculates bodyweight challenge volume from the effective workout-date weight.
+
 ### v1.1.41
 
 - Added carry-forward effective weight handling so missing weight-log days inherit the most recent previous weight in daily ledger rows, charts, averages, trends, step calories, and workout/bodyweight calculations without creating synthetic weight entries.

@@ -20,9 +20,10 @@
 
   function movingAverage(values = [], windowSize = 7) {
     return values.map((value, index) => {
-      if (!Number.isFinite(Number(value))) return null;
+      if (finiteOrNull(value) === null) return null;
       const window = values
         .slice(Math.max(0, index - windowSize + 1), index + 1)
+        .filter((item) => item !== null && item !== undefined && item !== '')
         .map(Number)
         .filter(Number.isFinite);
       return window.length ? window.reduce((sum, item) => sum + item, 0) / window.length : null;
@@ -59,6 +60,7 @@
   }
 
   function finiteOrNull(value) {
+    if (value === null || value === undefined || value === '') return null;
     const number = Number(value);
     return Number.isFinite(number) ? number : null;
   }
