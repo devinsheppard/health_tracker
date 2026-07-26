@@ -235,6 +235,98 @@ test('saves and reloads Behind-the-Body Pronated Cable Curl workout entries with
   assert.equal(data.daily_ledger[0].lifetime_lifting_total, 1260);
 });
 
+test('saves and reloads new shoulder cable and pivot workout entries without custom formulas', () => {
+  init();
+
+  const session = db.addRow('workout_sessions', {
+    date: '2026-07-25',
+    pre_glucose: null,
+    post_glucose: null,
+    duration: 45,
+    effort: 'moderate',
+    notes: 'shoulders'
+  });
+  db.addRow('workout_exercises', {
+    session_id: session.id,
+    muscle_group: 'Shoulders',
+    exercise: 'Rear Delt Cable Fly',
+    sets: 3,
+    reps: 12,
+    weight: 20,
+    seconds: null,
+    mode: 'single',
+    pounds: 1440
+  });
+  db.addRow('workout_exercises', {
+    session_id: session.id,
+    muscle_group: 'Shoulders',
+    exercise: 'Arm-Wrestling Inward Pivot',
+    sets: 2,
+    reps: 15,
+    weight: 25,
+    seconds: null,
+    mode: 'single',
+    pounds: 1500
+  });
+
+  const data = db.getAllData();
+  const byName = Object.fromEntries(data.workout_exercises.map((exercise) => [exercise.exercise, exercise]));
+
+  assert.deepEqual(Object.keys(byName).sort(), ['Arm-Wrestling Inward Pivot', 'Rear Delt Cable Fly']);
+  assert.equal(byName['Rear Delt Cable Fly'].muscle_group, 'Shoulders');
+  assert.equal(byName['Rear Delt Cable Fly'].mode, 'single');
+  assert.equal(byName['Arm-Wrestling Inward Pivot'].muscle_group, 'Shoulders');
+  assert.equal(byName['Arm-Wrestling Inward Pivot'].mode, 'single');
+  assert.equal(data.daily_ledger[0].workout_volume, 2940);
+  assert.equal(data.daily_ledger[0].lifetime_lifting_total, 2940);
+});
+
+test('saves, edits, deletes, and reloads High and Wide Face Pulls without custom formulas', () => {
+  init();
+
+  const session = db.addRow('workout_sessions', {
+    date: '2026-07-25',
+    pre_glucose: null,
+    post_glucose: null,
+    duration: 45,
+    effort: 'moderate',
+    notes: 'rear delts'
+  });
+  const exercise = db.addRow('workout_exercises', {
+    session_id: session.id,
+    muscle_group: 'Shoulders',
+    exercise: 'High and Wide Face Pulls',
+    sets: 3,
+    reps: 12,
+    weight: 40,
+    seconds: null,
+    mode: 'bilateral',
+    pounds: 1440
+  });
+
+  let data = db.getAllData();
+  assert.equal(data.workout_exercises[0].exercise, 'High and Wide Face Pulls');
+  assert.equal(data.workout_exercises[0].muscle_group, 'Shoulders');
+  assert.equal(data.workout_exercises[0].mode, 'bilateral');
+  assert.equal(data.workout_exercises[0].pounds, 1440);
+  assert.equal(data.daily_ledger[0].workout_volume, 1440);
+  assert.equal(data.daily_ledger[0].lifetime_lifting_total, 1440);
+
+  db.updateRow('workout_exercises', exercise.id, { sets: 4, reps: 12, weight: 45, pounds: 2160 });
+  data = db.getAllData();
+  assert.equal(data.workout_exercises.length, 1);
+  assert.equal(data.workout_exercises[0].id, exercise.id);
+  assert.equal(data.workout_exercises[0].pounds, 2160);
+  assert.equal(data.daily_ledger[0].workout_volume, 2160);
+  assert.equal(data.daily_ledger[0].lifetime_lifting_total, 2160);
+
+  db.deleteRow('workout_exercises', exercise.id);
+  data = db.getAllData();
+  assert.equal(data.workout_exercises.length, 0);
+  assert.equal(data.daily_ledger[0].workout_volume, 0);
+  assert.equal(data.daily_ledger[0].lifetime_lifting_total, 0);
+});
+
 test('saves, edits, deletes, and reloads timed plank workout entries without lifting pounds', () => {
   init();
 

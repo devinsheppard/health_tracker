@@ -117,7 +117,9 @@ function latestSteps(date = today()) {
   return [...todayRows('step_log', date)].sort((a, b) => n(b.id) - n(a.id))[0] || null;
 }
 
-function profileWeight() {
+function profileWeight(date = today()) {
+  const effective = effectiveWeightOnOrBefore(date);
+  if (effective?.weight) return effective.weight;
   return latestWeight()?.weight || state.profile?.current_weight || 0;
 }
 
@@ -125,27 +127,33 @@ function latestWeight() {
   return [...(state.weight_log || [])].sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id)[0];
 }
 
+function effectiveWeightOnOrBefore(date = today()) {
+  return [...(state.weight_log || [])]
+    .filter((row) => row.date && row.date <= date)
+    .sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id)[0] || null;
+}
+
 function average(values) {
   const clean = values.map(Number).filter(Number.isFinite);
   return clean.length ? clean.reduce((sum, value) => sum + value, 0) / clean.length : 0;
 }
 
-function lbm(profile = state.profile) {
-  const logged = latestWeight();
+function lbm(profile = state.profile, date = today()) {
+  const logged = effectiveWeightOnOrBefore(date) || latestWeight();
   const weight = logged?.weight || profile?.current_weight;
   const bodyFat = logged?.body_fat || profile?.body_fat;
   return leanBodyMass(weight, bodyFat) || n(profile?.lean_body_mass);
 }
 
-function bmr() {
-  return katchMcardleBmr(lbm());
+function bmr(date = today()) {
+  return katchMcardleBmr(lbm(state.profile, date));
 }
 
 function dailyBurn(date = today()) {
   const steps = latestSteps(date);
   const activityTotals = activityBurnTotals(todayRows('activities', date), {
     steps: steps?.steps || 0,
-    weightPounds: profileWeight(),
+    weightPounds: profileWeight(date),
     heightFt: state.profile?.height_ft,
     heightIn: state.profile?.height_in
   });
@@ -156,7 +164,7 @@ function dailyBurn(date = today()) {
     .filter((session) => session.date === date && !workoutActivityForSession(session.id))
     .reduce((sum, session) => sum + n(workoutCalorieEstimate(session, exercisesForSession(session.id)).calories), 0);
   const workoutBurn = workoutActivityBurn + unlinkedWorkoutBurn;
-  return { activityBurn, workoutBurn, stepBurn, steps: n(steps?.steps), tdee: bmr() + activityBurn + workoutBurn };
+  return { activityBurn, workoutBurn, stepBurn, steps: n(steps?.steps), tdee: bmr(date) + activityBurn + workoutBurn };
 }
 
 function foodTotals(date = today()) {
@@ -1088,20 +1096,20 @@ function bindActivityForm() {
   const form = document.getElementById('activityForm');
   form.elements.name.addEventListener('change', () => {
     if (activities[form.elements.name.value]) form.elements.met.value = activities[form.elements.name.value];
-    form.elements.calories.value = fmt(metCalories(form.elements.met.value, form.elements.duration.value));
+    form.elements.calories.value = fmt(metCalories(form.elements.met.value, form.elements.duration.value, form.elements.date.value));
   });
   form.elements.met.addEventListener('input', () => {
-    form.elements.calories.value = fmt(metCalories(form.elements.met.value, form.elements.duration.value));
+    form.elements.calories.value = fmt(metCalories(form.elements.met.value, form.elements.duration.value, form.elements.date.value));
   });
   form.elements.duration.addEventListener('input', () => {
-    form.elements.calories.value = fmt(metCalories(form.elements.met.value, form.elements.duration.value));
+    form.elements.calories.value = fmt(metCalories(form.elements.met.value, form.elements.duration.value, form.elements.date.value));
   });
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     const body = formData(form);
     const activityId = Number(body.id);
     delete body.id;
-    body.calories = n(body.calories) || metCalories(body.met, body.duration);
+    body.calories = n(body.calories) || metCalories(body.met, body.duration, body.date);
     body.kind = body.kind || 'activity';
     await save(() => {
       if (activityId) {
@@ -1325,7 +1333,8 @@ function draftExerciseFromForm(body) {
     sets: body.ex_sets,
     reps: body.ex_reps,
     weight: body.ex_weight,
-    seconds: body.ex_seconds
+    seconds: body.ex_seconds,
+    date: body.date
   };
   exercise.mode = exerciseMode(exercise.muscle_group, exercise.exercise);
   exercise.pounds = exercisePounds(exercise);
@@ -1445,12 +1454,12 @@ function carbFlag(carbs) {
   return dietProfiles[diet] || 'No diet selected';
 }
 
-function metCalories(met, minutes) {
-  return calculateMetCalories(met, minutes, profileWeight());
+function metCalories(met, minutes, date = today()) {
+  return calculateMetCalories(met, minutes, profileWeight(date));
 }
 
-function stepCalories(steps) {
-  return calculateStepCalories(steps, profileWeight(), state.profile?.height_ft, state.profile?.height_in);
+function stepCalories(steps, date = today()) {
+  return calculateStepCalories(steps, profileWeight(date), state.profile?.height_ft, state.profile?.height_in);
 }
 
 function exercisesForSession(sessionId) {
@@ -1458,7 +1467,7 @@ function exercisesForSession(sessionId) {
 }
 
 function workoutCalorieEstimate(session, exercises = []) {
-  return calculateWorkoutCalories(session, exercises, profileWeight(), bmr());
+  return calculateWorkoutCalories(session, exercises, profileWeight(session?.date || today()), bmr(session?.date || today()));
 }
 
 function exerciseMode(group, exercise) {
@@ -1466,7 +1475,7 @@ function exerciseMode(group, exercise) {
 }
 
 function exercisePounds(row) {
-  return calculateExercisePounds(row, profileWeight());
+  return calculateExercisePounds(row, profileWeight(row?.date || workoutSessionDraft.date || today()));
 }
 
 function lifetimePounds() {
@@ -1508,7 +1517,7 @@ function stepHistoryTable() {
   return table(['Date', 'Steps', 'Estimated calories', 'Actions'], sortActivityHistoryRows(state.step_log || []).map((row) => [
     row.date,
     fmt(row.steps),
-    fmt(stepCalories(row.steps)),
+    fmt(stepCalories(row.steps, row.date)),
     raw(`<div class="actions"><button class="mini-button" data-edit-steps="${attr(row.id)}" type="button">Edit</button>${del('step_log', row.id).html}</div>`)
   ]));
 }
@@ -1624,7 +1633,8 @@ function workoutExercisesTable(sessionId, editingExercise = null) {
 
 function bodyweightBasisForExercise(exercise) {
   const reps = n(exercise.sets) * n(exercise.reps);
-  return reps ? n(exercise.pounds) / reps : profileWeight();
+  const session = (state.workout_sessions || []).find((row) => n(row.id) === n(exercise.session_id));
+  return reps ? n(exercise.pounds) / reps : profileWeight(session?.date || today());
 }
 
 function linkedWorkoutActivity(sessionId) {

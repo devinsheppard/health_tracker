@@ -51,6 +51,43 @@ test('keeps Behind-the-Body Pronated Cable Curl distinct from the standard varia
   assert.deepEqual(pronated, [['Behind-the-Body Pronated Cable Curl', 'bilateral']]);
 });
 
+test('adds shoulder cable and pivot movements as single-side weighted exercises', () => {
+  const shoulders = catalog.exerciseGroups.Shoulders;
+  const rearDeltCable = shoulders.filter(([name]) => name === 'Rear Delt Cable Fly');
+  const pluralRearDeltCable = shoulders.filter(([name]) => name === 'Rear Delt Cable Flies');
+  const armWrestlingPivot = shoulders.filter(([name]) => name === 'Arm-Wrestling Inward Pivot');
+  const rearDeltIndex = shoulders.findIndex(([name]) => name === 'Rear delt fly');
+  const rearDeltCableIndex = shoulders.findIndex(([name]) => name === 'Rear Delt Cable Fly');
+  const cableLateralIndex = shoulders.findIndex(([name]) => name === 'Cable lateral raise');
+  const armWrestlingIndex = shoulders.findIndex(([name]) => name === 'Arm-Wrestling Inward Pivot');
+
+  assert.deepEqual(rearDeltCable, [['Rear Delt Cable Fly', 'single']]);
+  assert.deepEqual(pluralRearDeltCable, []);
+  assert.deepEqual(armWrestlingPivot, [['Arm-Wrestling Inward Pivot', 'single']]);
+  assert.equal(rearDeltCableIndex, rearDeltIndex + 1);
+  assert.equal(armWrestlingIndex, cableLateralIndex + 1);
+});
+
+test('adds High and Wide Face Pulls as one bilateral shoulder entry near rear delt cable work', () => {
+  const shoulders = catalog.exerciseGroups.Shoulders;
+  const matches = shoulders.filter(([name]) => name === 'High and Wide Face Pulls');
+  const aliasMatches = shoulders.filter(([name]) => [
+    'High and Wide Face Pull',
+    'Rear Delt Face Pull',
+    'High-Wide Face Pull',
+    'Face Pull with External Rotation',
+    'Cable Rear Delt Face Pull'
+  ].includes(name));
+  const rearDeltCableIndex = shoulders.findIndex(([name]) => name === 'Rear Delt Cable Fly');
+  const highWideIndex = shoulders.findIndex(([name]) => name === 'High and Wide Face Pulls');
+  const cableLateralIndex = shoulders.findIndex(([name]) => name === 'Cable lateral raise');
+
+  assert.deepEqual(matches, [['High and Wide Face Pulls', 'bilateral']]);
+  assert.deepEqual(aliasMatches, []);
+  assert.equal(highWideIndex, rearDeltCableIndex + 1);
+  assert.equal(cableLateralIndex, highWideIndex + 1);
+});
+
 test('adds the plank exercise family as timed exercises', () => {
   const plankNames = catalog.exerciseGroups.Planks.map(([name]) => name);
 

@@ -746,13 +746,7 @@ function ledgerDates() {
 }
 
 function dailyLedgerRow(date) {
-  const weight = one(`
-    SELECT weight, body_fat, lean_body_mass
-    FROM weight_log
-    WHERE date = ?
-    ORDER BY id DESC
-    LIMIT 1
-  `, [date]) || {};
+  const weight = effectiveWeightOnOrBefore(date) || {};
   const glucose = one(`
     SELECT COUNT(value) AS count, AVG(value) AS avg
     FROM glucose_readings
@@ -785,7 +779,7 @@ function dailyLedgerRow(date) {
     LIMIT 1
   `, [date]) || {} : {};
   const profile = one('SELECT current_weight, height_ft, height_in FROM profile WHERE id = 1') || {};
-  const weightForSteps = clean(weight.weight) || clean(profile.current_weight);
+  const weightForSteps = clean(weight.weight) || (hasWeightHistory() ? null : clean(profile.current_weight));
   const stepCalories = calculations.stepCalories(step.steps, weightForSteps, profile.height_ft, profile.height_in);
   const hasStepCalories = n(step.steps) > 0 && n(stepCalories) > 0;
   const activity = all('SELECT name, duration, calories, kind FROM activities WHERE date = ?', [date])
@@ -858,6 +852,20 @@ function dailyLedgerRow(date) {
     notes: ledgerNotes(date),
     updated_at: new Date().toISOString()
   };
+}
+
+function effectiveWeightOnOrBefore(date) {
+  return one(`
+    SELECT weight, body_fat, lean_body_mass
+    FROM weight_log
+    WHERE date <= ?
+    ORDER BY date DESC, id DESC
+    LIMIT 1
+  `, [date]);
+}
+
+function hasWeightHistory() {
+  return n(one('SELECT COUNT(*) AS count FROM weight_log')?.count) > 0;
 }
 
 function ledgerNotes(date) {

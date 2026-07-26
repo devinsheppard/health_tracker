@@ -174,6 +174,70 @@ test('maintains one daily ledger row with health totals for each date', () => {
   assert.match(row.notes, /Lab: review next visit/);
 });
 
+test('carries forward effective weight without inserting synthetic weight entries', () => {
+  const userDataPath = tempUserData();
+  db.init(userDataPath);
+
+  db.addRow('glucose_readings', {
+    date: '2026-06-30',
+    time: '07:00',
+    context: 'fasting morning',
+    value: 100,
+    notes: 'before first weight'
+  });
+  db.addRow('weight_log', {
+    date: '2026-07-01',
+    weight: 240.2,
+    body_fat: 25,
+    lean_body_mass: 180.15,
+    notes: 'first weight'
+  });
+  db.addRow('food_log', {
+    date: '2026-07-02',
+    meal_type: 'dinner',
+    description: 'No weigh-in day',
+    net_carbs: 5,
+    protein: 40,
+    fat: 20,
+    calories: 360
+  });
+  db.addRow('step_log', {
+    date: '2026-07-03',
+    steps: 10000,
+    notes: 'carried step burn'
+  });
+  db.addRow('weight_log', {
+    date: '2026-07-04',
+    weight: 239.6,
+    body_fat: 24.8,
+    lean_body_mass: 180.2,
+    notes: 'next weight'
+  });
+  db.addRow('food_log', {
+    date: '2026-07-05',
+    meal_type: 'dinner',
+    description: 'Carry new weight',
+    net_carbs: 5,
+    protein: 40,
+    fat: 20,
+    calories: 360
+  });
+
+  const data = db.getAllData();
+  const byDate = Object.fromEntries(data.daily_ledger.map((row) => [row.date, row]));
+
+  assert.equal(byDate['2026-06-30'].weight, null);
+  assert.equal(byDate['2026-07-01'].weight, 240.2);
+  assert.equal(byDate['2026-07-02'].weight, 240.2);
+  assert.equal(byDate['2026-07-03'].weight, 240.2);
+  assert.equal(byDate['2026-07-04'].weight, 239.6);
+  assert.equal(byDate['2026-07-05'].weight, 239.6);
+  assert.equal(byDate['2026-07-02'].body_fat, 25);
+  assert.equal(byDate['2026-07-05'].body_fat, 24.8);
+  assert.equal(Number(byDate['2026-07-03'].step_calories.toFixed(1)), 602.8);
+  assert.equal(data.weight_log.length, 2);
+});
+
 test('counts non-walking activity with steps while preventing walking double count', () => {
   const userDataPath = tempUserData();
   db.init(userDataPath);

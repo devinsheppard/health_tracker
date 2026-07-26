@@ -111,6 +111,18 @@ Upgrades preserve user data because the installer keeps the same Electron app id
 
 ## Changelog
 
+### v1.1.41
+
+- Added carry-forward effective weight handling so missing weight-log days inherit the most recent previous weight in daily ledger rows, charts, averages, trends, step calories, and workout/bodyweight calculations without creating synthetic weight entries.
+
+### v1.1.40
+
+- Added `High and Wide Face Pulls` to the Shoulders workout list as a rear-delt-focused bilateral cable movement using existing workout calorie, daily ledger, and lifetime lifting total calculations.
+
+### v1.1.39
+
+- Added `Rear Delt Cable Fly` and `Arm-Wrestling Inward Pivot` to the Shoulders workout list as standard single-side weighted movements using existing volume, workout calorie, daily ledger, and lifetime lifting total calculations.
+
 ### v1.1.38
 
 - Replaced shared native number inputs with text-backed numeric controls and explicit step buttons so manual numeric replacement continues working after deleting saved records.

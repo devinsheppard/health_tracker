@@ -178,6 +178,43 @@ test('calculates Behind-the-Body Pronated Cable Curl through shared bilateral wo
   assert.equal(challenge.month, 1);
 });
 
+test('calculates new shoulder cable and pivot movements through shared single-side workout logic', () => {
+  const exercises = [
+    { exercise: 'Rear Delt Cable Fly', mode: 'single', sets: 3, reps: 12, weight: 20 },
+    { exercise: 'Arm-Wrestling Inward Pivot', mode: 'single', sets: 2, reps: 15, weight: 25 }
+  ].map((exercise) => ({ ...exercise, pounds: calc.exercisePounds(exercise, 220) }));
+  const calories = calc.workoutCalorieEstimate({ effort: 'moderate', duration: 30 }, exercises, 220, 2100);
+  const challenge = calc.lifetimePounds(exercises, [{ date: '2026-07-25' }], '2026-07-25');
+
+  assert.equal(exercises[0].pounds, 1440);
+  assert.equal(exercises[1].pounds, 1500);
+  assert.equal(exercises[0].pounds, calc.exercisePounds({ mode: 'single', sets: 3, reps: 12, weight: 20 }, 220));
+  assert.equal(exercises[1].pounds, calc.exercisePounds({ mode: 'single', sets: 2, reps: 15, weight: 25 }, 220));
+  assert.equal(calories.pounds, 2940);
+  assert.equal(calories.duration, 30);
+  assert.equal(challenge.total, 2940);
+  assert.equal(challenge.week, 1);
+  assert.equal(challenge.month, 1);
+});
+
+test('calculates High and Wide Face Pulls through shared bilateral workout logic', () => {
+  const exercise = { exercise: 'High and Wide Face Pulls', mode: 'bilateral', sets: 3, reps: 12, weight: 40 };
+  const pounds = calc.exercisePounds(exercise, 220);
+  const withPounds = { ...exercise, pounds };
+  const calories = calc.workoutCalorieEstimate({ effort: 'moderate', duration: 30 }, [withPounds], 220, 2100);
+  const challenge = calc.lifetimePounds([withPounds], [{ date: '2026-07-25' }], '2026-07-25');
+
+  assert.equal(pounds, 1440);
+  assert.equal(pounds, calc.exercisePounds({ mode: 'bilateral', sets: 3, reps: 12, weight: 40 }, 220));
+  assert.notEqual(pounds, 2880);
+  assert.equal(calories.pounds, 1440);
+  assert.equal(calories.duration, 30);
+  assert.equal(calories.calories > 0, true);
+  assert.equal(challenge.total, 1440);
+  assert.equal(challenge.week, 1);
+  assert.equal(challenge.month, 1);
+});
+
 test('calculates standard forearm plank calories from body weight and duration', () => {
   const calories = calc.plankCaloriesForExercise({ exercise: 'Forearm Plank', sets: 2, seconds: 60, mode: 'timed' }, 220, 'moderate');
 

@@ -21,6 +21,20 @@ test('builds ledger trend series from the most recent sorted rows', () => {
   assert.deepEqual(series.volume, [2000, 3000]);
 });
 
+test('keeps carried-forward weight values in charts and rolling averages', () => {
+  const series = trends.ledgerTrendSeries([
+    { date: '2026-07-01', weight: 240.2, food_calories: 1800, activity_calories: 0, workout_calories: 0, workout_volume: 0 },
+    { date: '2026-07-02', weight: 240.2, food_calories: 1800, activity_calories: 0, workout_calories: 0, workout_volume: 0 },
+    { date: '2026-07-03', weight: 240.2, food_calories: 1800, activity_calories: 0, workout_calories: 0, workout_volume: 0 },
+    { date: '2026-07-04', weight: 239.6, food_calories: 1800, activity_calories: 0, workout_calories: 0, workout_volume: 0 },
+    { date: '2026-07-05', weight: 239.6, food_calories: 1800, activity_calories: 0, workout_calories: 0, workout_volume: 0 }
+  ], 5, 1400);
+
+  assert.deepEqual(series.weight, [240.2, 240.2, 240.2, 239.6, 239.6]);
+  assert.equal(series.weight.includes(0), false);
+  assert.equal(Number(series.weightAverage[4].toFixed(2)), 239.96);
+});
+
 test('uses step-inclusive activity calories in deficit and surplus trends', () => {
   const series = trends.ledgerTrendSeries([
     { date: '2026-07-01', food_calories: 2000, activity_calories: 650, step_calories: 350, workout_calories: 250 }
