@@ -112,6 +112,13 @@ Upgrades preserve user data because the installer keeps the same Electron app id
 
 ## Changelog
 
+### v2.2.0
+
+- Rebuilt the complete interface around the custom Graphite Instrumentation design language: chamfered modules, mechanical framing, recessed controls, precision headers, technical labels, and restrained illuminated accents.
+- Reworked dashboard metrics into telemetry modules and restyled charts with engineering-grid axes, instrument typography, sharper traces, technical legends, and squared tooltips.
+- Replaced generic rounded navigation, panels, buttons, dialogs, settings sections, tables, pickers, and status badges with consistent desktop-console components across every page.
+- Preserved the existing Electron desktop packaging, database schema, calculations, app identity, and `%APPDATA%\My Health Tracker\my-health-tracker.sqlite` storage path.
+
 ### v2.1.0
 
 - Replaced every shared minus/value/plus numeric control with one compact, editable spinbox and an integrated vertical up/down arrow rail.

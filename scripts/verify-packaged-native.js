@@ -23,6 +23,7 @@ if (!fs.existsSync(executable)) {
 }
 const packagedPackage = JSON.parse(asar.extractFile(asarPath, 'package.json').toString());
 const packagedRenderer = asar.extractFile(asarPath, 'src\\renderer\\app.js').toString();
+const packagedStyles = asar.extractFile(asarPath, 'src\\renderer\\styles.css').toString();
 if (packagedPackage.version !== sourcePackage.version) {
   throw new Error(`Packaged version ${packagedPackage.version} does not match source version ${sourcePackage.version}.`);
 }
@@ -36,9 +37,13 @@ if (
   || !packagedRenderer.includes('role="spinbutton"')
   || !packagedRenderer.includes('handleNumberWheel')
   || !packagedRenderer.includes('activity-primary-fields')
+  || !packagedRenderer.includes('panel-code')
+  || !packagedRenderer.includes('CH-${String(index + 1)')
   || !packagedRenderer.includes('nav-group')
+  || !packagedStyles.includes('Graphite Instrumentation')
+  || !packagedStyles.includes('clip-path: polygon')
 ) {
-  throw new Error('Packaged renderer does not contain the final v2.1 dashboard, spinner, and environmental UI implementation.');
+  throw new Error('Packaged renderer does not contain the final v2.2 Graphite Instrumentation interface.');
 }
 
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'health-tracker-packaged-smoke-'));

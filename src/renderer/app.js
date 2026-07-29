@@ -128,6 +128,7 @@ function renderNav() {
 function renderPage(page) {
   charts.forEach((chart) => chart.destroy());
   charts = [];
+  document.body.dataset.page = page;
   document.querySelectorAll('.nav-button').forEach((button) => button.classList.toggle('active', button.dataset.page === page));
   document.getElementById('pageTitle').textContent = pages.find(([id]) => id === page)?.[1] || 'Dashboard';
   const renderers = { dashboard, glucose, bloodPressure, food, workouts, activity, weight, sleep, meds, labs, settings };
@@ -135,19 +136,21 @@ function renderPage(page) {
 }
 
 function metrics(items) {
-  return `<div class="grid four">${items.map(([label, value, note]) => `
+  return `<div class="grid four telemetry-grid">${items.map(([label, value, note], index) => `
     <article class="metric ${metricTone(label, value, note)}">
-      <div class="metric-heading">${metricIcon(label)}<span>${esc(label)}</span></div>
-      <strong>${esc(value)}</strong>
-      <small>${esc(note || '')}</small>
+      <div class="metric-heading">${metricIcon(label)}<span>${esc(label)}</span><b>CH-${String(index + 1).padStart(2, '0')}</b></div>
+      <div class="metric-reading"><strong>${esc(value)}</strong><i aria-hidden="true"></i></div>
+      <small>${esc(note || '')}</small><span class="module-corner" aria-hidden="true"></span>
     </article>
   `).join('')}</div>`;
 }
 
 function panel(title, body) {
-  return `<section class="panel">
-    <div class="panel-heading">${metricIcon(title)}<h2>${esc(title)}</h2></div>
+  const code = String(title || 'module').replace(/[^a-z0-9]/gi, '').slice(0, 4).toUpperCase().padEnd(4, 'X');
+  return `<section class="panel" data-module="${attr(code)}">
+    <div class="panel-heading">${metricIcon(title)}<h2>${esc(title)}</h2><span class="panel-code">MHT / ${esc(code)}</span></div>
     ${body}
+    <span class="module-corner" aria-hidden="true"></span>
   </section>`;
 }
 
@@ -394,6 +397,7 @@ function dashboardStat(icon, label, value, note, tone = 'info') {
     <article class="dashboard-stat ${tone}">
       <span class="feature-icon ${tone}">${appIcon(icon)}</span>
       <div><span>${esc(label)}</span><strong>${esc(value)}</strong><small>${esc(note)}</small></div>
+      <i class="signal-mark" aria-hidden="true"></i>
     </article>
   `;
 }
@@ -2491,8 +2495,8 @@ function drawWeightChart(id) {
     data: {
       labels: trends.labels,
       datasets: [
-        { label: 'Weight', data: trends.weight, borderColor: '#48c78e', backgroundColor: 'rgba(72,199,142,.08)', fill: true, tension: .3, spanGaps: true, pointRadius: 1.5 },
-        { label: '7-day average', data: trends.weightAverage, borderColor: '#f0ad4e', borderDash: [6, 4], tension: .3, spanGaps: true, pointRadius: 0 }
+        { label: 'Weight', data: trends.weight, borderColor: '#58d6a0', backgroundColor: 'rgba(88,214,160,.06)', borderWidth: 2, fill: true, tension: .18, spanGaps: true, pointRadius: 1.5, pointHoverRadius: 5 },
+        { label: '7-day average', data: trends.weightAverage, borderColor: '#dca95a', borderDash: [7, 4], borderWidth: 1.5, tension: .18, spanGaps: true, pointRadius: 0 }
       ]
     },
     options: chartOptions()
@@ -2508,15 +2512,15 @@ function drawGlucoseChart(id) {
     data: {
       labels: trends.labels,
       datasets: [
-        { label: 'Daily avg glucose', data: trends.glucose, borderColor: '#9b7cf7', backgroundColor: 'rgba(155,124,247,.08)', fill: true, tension: .3, spanGaps: true, yAxisID: 'y', pointRadius: 1.5 },
-        { label: 'Estimated A1C', data: trends.a1c, borderColor: '#f0ad4e', tension: .3, spanGaps: true, yAxisID: 'a1c', pointRadius: 0 }
+        { label: 'Daily avg glucose', data: trends.glucose, borderColor: '#9ba9ff', backgroundColor: 'rgba(155,169,255,.06)', borderWidth: 2, fill: true, tension: .18, spanGaps: true, yAxisID: 'y', pointRadius: 1.5, pointHoverRadius: 5 },
+        { label: 'Estimated A1C', data: trends.a1c, borderColor: '#dca95a', borderWidth: 1.5, tension: .18, spanGaps: true, yAxisID: 'a1c', pointRadius: 0 }
       ]
     },
     options: chartOptions({
       scales: {
         a1c: {
           position: 'right',
-          ticks: { color: getComputedStyle(document.body).getPropertyValue('--muted') },
+          ticks: { color: getComputedStyle(document.body).getPropertyValue('--muted'), font: { family: 'Consolas', size: 10 } },
           grid: { drawOnChartArea: false }
         }
       }
@@ -2535,8 +2539,10 @@ function drawBalanceChart(id) {
       datasets: [{
         label: 'Deficit / surplus',
         data: trends.balance,
-        backgroundColor: trends.balance.map((value) => value > 0 ? 'rgba(240,173,78,.72)' : 'rgba(72,199,142,.72)'),
-        borderRadius: 4
+        backgroundColor: trends.balance.map((value) => value > 0 ? 'rgba(220,169,90,.76)' : 'rgba(88,214,160,.72)'),
+        borderColor: trends.balance.map((value) => value > 0 ? '#dca95a' : '#58d6a0'),
+        borderWidth: 1,
+        borderRadius: 0
       }]
     },
     options: chartOptions()
@@ -2548,36 +2554,55 @@ function drawA1cChart(id, rows) {
   if (!ctx) return;
   charts.push(new Chart(ctx, {
     type: 'line',
-    data: { labels: rows.map((r) => r.date), datasets: [{ label: 'A1c', data: rows.map((r) => n(r.value)), borderColor: '#f0ad4e', tension: .3, pointRadius: 2 }] },
+    data: { labels: rows.map((r) => r.date), datasets: [{ label: 'A1c', data: rows.map((r) => n(r.value)), borderColor: '#dca95a', borderWidth: 2, tension: .18, pointRadius: 2, pointHoverRadius: 5 }] },
     options: chartOptions()
   }));
 }
 
 function chartOptions(overrides = {}) {
+  const styles = getComputedStyle(document.body);
+  const muted = styles.getPropertyValue('--muted');
+  const text = styles.getPropertyValue('--text');
+  const line = styles.getPropertyValue('--chart-grid');
   const baseScales = {
-    x: { ticks: { color: getComputedStyle(document.body).getPropertyValue('--muted') }, grid: { color: 'rgba(128,128,128,.16)' } },
-    y: { ticks: { color: getComputedStyle(document.body).getPropertyValue('--muted') }, grid: { color: 'rgba(128,128,128,.16)' } }
+    x: {
+      border: { color: styles.getPropertyValue('--line-strong') },
+      ticks: { color: muted, maxRotation: 0, font: { family: 'Consolas', size: 10 } },
+      grid: { color: line, tickColor: styles.getPropertyValue('--line-strong') }
+    },
+    y: {
+      border: { color: styles.getPropertyValue('--line-strong') },
+      ticks: { color: muted, font: { family: 'Consolas', size: 10 } },
+      grid: { color: line, tickColor: styles.getPropertyValue('--line-strong') }
+    }
   };
   return {
     responsive: true,
     maintainAspectRatio: false,
+    animation: { duration: 360, easing: 'easeOutQuart' },
     interaction: { mode: 'index', intersect: false },
     plugins: {
       legend: {
         labels: {
-          color: getComputedStyle(document.body).getPropertyValue('--text'),
-          boxWidth: 10,
-          boxHeight: 10,
+          color: text,
+          boxWidth: 14,
+          boxHeight: 2,
+          padding: 18,
+          font: { family: 'Bahnschrift', size: 11, weight: 600 },
           usePointStyle: true,
-          pointStyle: 'circle'
+          pointStyle: 'line'
         }
       },
       tooltip: {
-        backgroundColor: getComputedStyle(document.body).getPropertyValue('--panel-3'),
-        titleColor: getComputedStyle(document.body).getPropertyValue('--text'),
-        bodyColor: getComputedStyle(document.body).getPropertyValue('--text'),
-        borderColor: getComputedStyle(document.body).getPropertyValue('--line-strong'),
-        borderWidth: 1
+        backgroundColor: styles.getPropertyValue('--panel-3'),
+        titleColor: text,
+        bodyColor: text,
+        borderColor: styles.getPropertyValue('--brand'),
+        borderWidth: 1,
+        cornerRadius: 2,
+        padding: 11,
+        titleFont: { family: 'Bahnschrift', weight: 700 },
+        bodyFont: { family: 'Consolas' }
       }
     },
     scales: { ...baseScales, ...(overrides.scales || {}) }

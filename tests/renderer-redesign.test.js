@@ -60,8 +60,17 @@ test('v2 settings uses spacious sections, descriptive data actions, and primary 
   assert.match(styles, /min-height:\s*46px/);
 });
 
-test('application release metadata is version 2.1.0', () => {
-  assert.equal(packageJson.version, '2.1.0');
+test('graphite instrumentation design exposes mechanical modules and technical telemetry', () => {
+  assert.match(appJs, /panel-code/);
+  assert.match(appJs, /CH-\$\{String\(index \+ 1\)/);
+  assert.match(appJs, /signal-mark/);
+  assert.match(styles, /--chart-grid:/);
+  assert.match(styles, /clip-path:\s*polygon/);
+  assert.match(styles, /Graphite|instrument/i);
+});
+
+test('application release metadata is version 2.2.0', () => {
+  assert.equal(packageJson.version, '2.2.0');
   assert.equal(packageJson.build.appId, 'com.local.myhealthtracker');
   assert.equal(packageJson.build.productName, 'My Health Tracker');
 });
