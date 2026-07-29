@@ -629,20 +629,29 @@ function labs() {
 function settings() {
   const p = state.profile || {};
   setContent(`
-    <div class="grid two">
-      ${panel('Profile and goals', profileForm(p))}
-      ${panel('Database', `
-        <div class="grid">
-          <p class="muted">Backup exports a checked SQLite copy. Restore validates the selected backup and creates a safety copy before replacing the local database.</p>
-          <div class="actions">
-            <button class="primary-button" id="backupBtn" type="button">Backup database</button>
-            <button class="ghost-button" id="restoreBtn" type="button">Restore database</button>
-            <button class="ghost-button" id="exportFullJsonBtn" type="button">Export JSON</button>
-            <button class="ghost-button" id="importFullJsonBtn" type="button">Import JSON</button>
-            <button class="danger-button" id="clearBtn" type="button">Clear all data</button>
-          </div>
+    <div class="settings-page">
+      ${profileForm(p)}
+      ${settingsCard('Database', 'Back up, restore, and transfer your locally stored health records.', `
+        <div class="settings-actions">
+          ${settingsAction('Backup database', 'Create and validate a complete SQLite copy in a folder you choose.', 'backupBtn', 'primary-button', 'Create backup')}
+          ${settingsAction('Restore database', 'Validate a SQLite backup, preserve a safety copy, then replace the active database.', 'restoreBtn', 'ghost-button', 'Restore backup')}
+          ${settingsAction('Export JSON', 'Export your profile, settings, and every tracker table to a portable JSON file.', 'exportFullJsonBtn', 'ghost-button', 'Export JSON')}
+          ${settingsAction('Import JSON', 'Create a safety backup, validate a full JSON export, and replace local records.', 'importFullJsonBtn', 'ghost-button', 'Import JSON')}
         </div>
       `)}
+      <section class="settings-card danger-zone">
+        <div class="settings-card-heading">
+          <span class="feature-icon danger">${appIcon('settings')}</span>
+          <div><h2>Danger Zone</h2><p>Permanent, destructive actions are isolated here.</p></div>
+        </div>
+        <div class="danger-action">
+          <div>
+            <strong>Clear all health tracker data</strong>
+            <p>Deletes every locally stored record and resets the profile. A confirmation is always required.</p>
+          </div>
+          <button class="danger-button" id="clearBtn" type="button">Clear all data</button>
+        </div>
+      </section>
     </div>
   `);
   document.getElementById('profileForm').addEventListener('submit', async (event) => {
@@ -991,22 +1000,57 @@ function labForm(row = null) {
 }
 
 function profileForm(p) {
-  return `<form id="profileForm">${fields([
-    ['name', 'Name', 'text', p.name || ''],
-    ['date_of_birth', 'Date of birth', 'date', p.date_of_birth || ''],
-    ['sex', 'Sex', 'select', p.sex || 'male', ['male', 'female']],
-    ['height_ft', 'Height ft', 'number', p.height_ft || ''],
-    ['height_in', 'Height in', 'number', p.height_in || ''],
-    ['current_weight', 'Current weight (lbs)', 'number', p.current_weight || ''],
-    ['body_fat', 'Body fat %', 'number', p.body_fat || ''],
-    ['goals', 'Goal', 'select', p.goals || 'weight loss', ['weight loss', 'body recomposition', 'muscle gain', 'maintenance', 'manage T2D/blood sugar']],
-    ['diet_type', 'Diet type', 'select', p.diet_type || 'keto', Object.keys(dietProfiles)],
-    ['protein_target', 'Protein target (g)', 'number', p.protein_target || 160],
-    ['a1c_goal', 'A1c goal (%)', 'number', p.a1c_goal || 5.7],
-    ['theme', 'Theme', 'select', p.theme || 'dark', ['dark', 'light']],
-    ['ui_scale', 'Text size', 'select', p.ui_scale || 'normal', ['normal', 'large', 'extra large']],
-    ['eating_window', 'Eating window', 'text', p.eating_window || '']
-  ])}<label>Active medical conditions<textarea name="medical_conditions">${esc(p.medical_conditions || '')}</textarea></label><p class="muted">Age: ${age(p.date_of_birth) || '--'} | Lean body mass: ${fmt(lbm(p), 1)} lbs | BMR: ${fmt(bmr())} cal</p><button class="primary-button">Save profile</button></form>`;
+  return `<form id="profileForm" class="settings-form">
+    ${settingsCard('Profile', 'Personal details used by existing body-composition and calorie calculations.', fields([
+      ['name', 'Name', 'text', p.name || ''],
+      ['date_of_birth', 'Date of birth', 'date', p.date_of_birth || ''],
+      ['sex', 'Sex', 'select', p.sex || 'male', ['male', 'female']],
+      ['height_ft', 'Height ft', 'number', p.height_ft || ''],
+      ['height_in', 'Height in', 'number', p.height_in || ''],
+      ['current_weight', 'Current weight (lbs)', 'number', p.current_weight || ''],
+      ['body_fat', 'Body fat %', 'number', p.body_fat || '']
+    ]))}
+    ${settingsCard('Goals', 'Targets that drive recommendations and progress displays.', fields([
+      ['goals', 'Primary goal', 'select', p.goals || 'weight loss', ['weight loss', 'body recomposition', 'muscle gain', 'maintenance', 'manage T2D/blood sugar']],
+      ['diet_type', 'Diet type', 'select', p.diet_type || 'keto', Object.keys(dietProfiles)],
+      ['protein_target', 'Protein target (g)', 'number', p.protein_target || 160],
+      ['a1c_goal', 'A1c goal (%)', 'number', p.a1c_goal || 5.7],
+      ['eating_window', 'Eating window', 'text', p.eating_window || '']
+    ]))}
+    ${settingsCard('Preferences', 'Adjust the interface without changing any health records.', fields([
+      ['theme', 'Theme', 'select', p.theme || 'dark', ['dark', 'light']],
+      ['ui_scale', 'Text size', 'select', p.ui_scale || 'normal', ['normal', 'large', 'extra large']]
+    ]))}
+    ${settingsCard('Medical', 'Optional context stored only in your local profile.', `
+      <label>Active medical conditions<textarea name="medical_conditions">${esc(p.medical_conditions || '')}</textarea></label>
+      <div class="profile-calculations">
+        <span><small>Age</small><strong>${age(p.date_of_birth) || '--'}</strong></span>
+        <span><small>Lean body mass</small><strong>${fmt(lbm(p), 1)} lbs</strong></span>
+        <span><small>Estimated BMR</small><strong>${fmt(bmr())} cal</strong></span>
+      </div>
+    `)}
+    <div class="settings-save-bar">
+      <p>Save all profile, goal, preference, and medical changes together.</p>
+      <button class="primary-button" type="submit">Save settings</button>
+    </div>
+  </form>`;
+}
+
+function settingsCard(title, description, body) {
+  return `<section class="settings-card">
+    <div class="settings-card-heading">
+      <span class="feature-icon info">${metricIcon(title)}</span>
+      <div><h2>${esc(title)}</h2><p>${esc(description)}</p></div>
+    </div>
+    ${body}
+  </section>`;
+}
+
+function settingsAction(title, description, id, buttonClass, buttonLabel) {
+  return `<article class="settings-action">
+    <div><strong>${esc(title)}</strong><p>${esc(description)}</p></div>
+    <button class="${attr(buttonClass)}" id="${attr(id)}" type="button">${esc(buttonLabel)}</button>
+  </article>`;
 }
 
 function fields(items) {
@@ -1025,8 +1069,10 @@ function numberField(name, label, value = '') {
   return `<label>${esc(label)}
     <span class="number-control">
       <input name="${attr(name)}" type="text" inputmode="decimal" data-number-input value="${attr(value)}">
-      <button class="number-step" data-number-step="-1" aria-label="Decrease ${attr(label)}" type="button">-</button>
-      <button class="number-step" data-number-step="1" aria-label="Increase ${attr(label)}" type="button">+</button>
+      <span class="number-stepper" aria-label="Optional ${attr(label)} step controls">
+        <button class="number-step" data-number-step="-1" aria-label="Decrease ${attr(label)}" type="button">−</button>
+        <button class="number-step" data-number-step="1" aria-label="Increase ${attr(label)}" type="button">+</button>
+      </span>
     </span>
   </label>`;
 }

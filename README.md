@@ -117,6 +117,7 @@ Upgrades preserve user data because the installer keeps the same Electron app id
 - Redesigned the full desktop interface as a polished dark health dashboard with red branding, grouped icon navigation, layered cards, clearer typography, responsive layouts, and high-contrast focus states.
 - Rebuilt the Dashboard hierarchy around real saved data for energy balance, glucose, estimated A1C, protein progress, steps, weight, sleep, blood pressure, workout burn, activity burn, weekly balance, and the 1,000,000 lb challenge.
 - Restyled every existing form, table, chart, badge, alert, progress indicator, modal, picker, and control without changing the underlying calculations, validation, auto-save, editing, deletion, import/export, backup/restore, or environmental-weather workflows.
+- Reorganized Settings into spacious Profile, Goals, Preferences, Medical, Database, and isolated Danger Zone sections with descriptive database actions and consistent primary numeric textboxes.
 - Preserved the established Electron app identity and `%APPDATA%\My Health Tracker\my-health-tracker.sqlite` storage path. Version 2.0.0 adds no database schema migration and reads existing schema-version-11 data directly.
 - Added renderer design contracts and strengthened packaged-app verification for the v2 navigation and dashboard.
 

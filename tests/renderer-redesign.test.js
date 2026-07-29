@@ -45,6 +45,21 @@ test('v2 visual system exposes accessible status, focus, contrast, and responsiv
   assert.match(styles, /\.table-wrap[\s\S]*overflow-x: auto/);
 });
 
+test('v2 settings uses spacious sections, descriptive data actions, and primary numeric textboxes', () => {
+  const settingsView = appJs.slice(appJs.indexOf('function settings()'), appJs.indexOf('function reports()'));
+  const profileView = appJs.slice(appJs.indexOf('function profileForm'), appJs.indexOf('function fields'));
+
+  for (const section of ['Profile', 'Goals', 'Preferences', 'Medical', 'Database', 'Danger Zone']) {
+    assert.match(`${settingsView}${profileView}`, new RegExp(section));
+  }
+  assert.match(settingsView, /Create and validate a complete SQLite copy/);
+  assert.match(settingsView, /A confirmation is always required/);
+  assert.match(appJs, /data-number-input/);
+  assert.match(appJs, /number-stepper/);
+  assert.match(styles, /\.settings-page[\s\S]*gap:\s*24px/);
+  assert.match(styles, /min-height:\s*46px/);
+});
+
 test('application release metadata is version 2.0.0', () => {
   assert.equal(packageJson.version, '2.0.0');
   assert.equal(packageJson.build.appId, 'com.local.myhealthtracker');

@@ -30,6 +30,9 @@ if (
   !packagedRenderer.includes("weather_is_automatic.value = '0'")
   || !packagedRenderer.includes('data-weather-error')
   || !packagedRenderer.includes('dashboard-primary')
+  || !packagedRenderer.includes('settings-page')
+  || !packagedRenderer.includes('Danger Zone')
+  || !packagedRenderer.includes('number-stepper')
   || !packagedRenderer.includes('nav-group')
 ) {
   throw new Error('Packaged renderer does not contain the final v2 dashboard and environmental UI implementation.');

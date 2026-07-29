@@ -176,9 +176,9 @@ nav {
 .primary-button,
 .danger-button,
 .back-button {
-  min-height: 42px;
-  border-radius: 10px;
-  padding: 9px 12px;
+  min-height: 46px;
+  border-radius: 12px;
+  padding: 10px 14px;
   color: var(--text);
   transition: background-color .15s ease, border-color .15s ease, color .15s ease;
 }
@@ -421,7 +421,7 @@ h3 {
 
 .panel {
   min-width: 0;
-  padding: 18px;
+  padding: 24px;
   overflow: hidden;
 }
 
@@ -888,13 +888,13 @@ h3 {
 
 form {
   display: grid;
-  gap: 13px;
+  gap: 16px;
 }
 
 .form-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 11px;
+  gap: 16px;
 }
 
 label {
@@ -922,9 +922,9 @@ select,
 textarea {
   width: 100%;
   min-width: 0;
-  min-height: 42px;
+  min-height: 46px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--input);
   color: var(--text);
   padding: 9px 11px;
@@ -938,16 +938,22 @@ textarea:hover {
 
 .number-control {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 38px 38px;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: stretch;
 }
 
 .number-control input {
-  border-radius: 10px 0 0 10px;
+  border-radius: 12px 0 0 12px;
+}
+
+.number-stepper {
+  display: flex;
+  align-items: stretch;
 }
 
 .number-step {
-  min-height: 42px;
+  width: 42px;
+  min-height: 46px;
   border: 1px solid var(--line);
   border-left: 0;
   background: var(--panel-2);
@@ -956,7 +962,7 @@ textarea:hover {
 }
 
 .number-step:last-child {
-  border-radius: 0 10px 10px 0;
+  border-radius: 0 12px 12px 0;
 }
 
 .number-step:hover {
@@ -967,6 +973,133 @@ textarea:hover {
 textarea {
   min-height: 78px;
   resize: vertical;
+}
+
+.settings-page,
+.settings-form {
+  display: grid;
+  gap: 24px;
+}
+
+.settings-page {
+  width: min(100%, 1180px);
+  margin-inline: auto;
+}
+
+.settings-card {
+  min-width: 0;
+  padding: clamp(24px, 3vw, 32px);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--panel) 96%, white 4%), var(--panel));
+  box-shadow: 0 14px 34px var(--shadow);
+}
+
+.settings-card-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.settings-card-heading h2 {
+  margin: 0 0 5px;
+  font-size: 1.05rem;
+}
+
+.settings-card-heading p,
+.settings-action p,
+.danger-action p,
+.settings-save-bar p {
+  margin: 0;
+  color: var(--muted);
+  font-size: .78rem;
+  line-height: 1.55;
+}
+
+.settings-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.settings-action,
+.danger-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel-2) 64%, transparent);
+}
+
+.settings-action > div,
+.danger-action > div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.settings-action button,
+.danger-action button,
+.settings-save-bar button {
+  flex: 0 0 auto;
+}
+
+.profile-calculations {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.profile-calculations span {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--panel-2);
+}
+
+.profile-calculations small {
+  color: var(--muted);
+}
+
+.profile-calculations strong {
+  font-size: 1.05rem;
+}
+
+.settings-save-bar {
+  position: sticky;
+  bottom: 16px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 16px 20px;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel) 94%, transparent);
+  box-shadow: 0 16px 34px var(--shadow);
+  backdrop-filter: blur(14px);
+}
+
+.danger-zone {
+  border-color: color-mix(in srgb, var(--bad) 45%, var(--line));
+  background: linear-gradient(145deg, color-mix(in srgb, var(--bad) 8%, var(--panel)), var(--panel));
+}
+
+.feature-icon.danger {
+  color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 14%, transparent);
+}
+
+.danger-action {
+  border-color: color-mix(in srgb, var(--bad) 30%, var(--line));
 }
 
 .actions {
@@ -1250,6 +1383,10 @@ small {
   .form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .settings-actions {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 760px) {
@@ -1281,5 +1418,22 @@ small {
 
   .dashboard-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .settings-action,
+  .danger-action,
+  .settings-save-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .settings-action button,
+  .danger-action button,
+  .settings-save-bar button {
+    width: 100%;
+  }
+
+  .profile-calculations {
+    grid-template-columns: 1fr;
   }
 }
