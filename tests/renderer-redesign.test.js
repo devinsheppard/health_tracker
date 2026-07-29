@@ -60,8 +60,8 @@ test('v2 settings uses spacious sections, descriptive data actions, and primary 
   assert.match(styles, /min-height:\s*46px/);
 });
 
-test('application release metadata is version 2.0.0', () => {
-  assert.equal(packageJson.version, '2.0.0');
+test('application release metadata is version 2.1.0', () => {
+  assert.equal(packageJson.version, '2.1.0');
   assert.equal(packageJson.build.appId, 'com.local.myhealthtracker');
   assert.equal(packageJson.build.productName, 'My Health Tracker');
 });

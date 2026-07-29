@@ -893,8 +893,24 @@ form {
 
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
   gap: 16px;
+}
+
+.activity-entry-grid {
+  grid-template-columns: 1fr;
+}
+
+.activity-primary-fields {
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+}
+
+.activity-metric-fields {
+  grid-template-columns: repeat(3, minmax(170px, 1fr));
+}
+
+.step-fields {
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
 }
 
 label {
@@ -937,37 +953,84 @@ textarea:hover {
 }
 
 .number-control {
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) 34px;
   align-items: stretch;
+  min-width: 0;
+  min-height: 46px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--input);
+  transition: border-color .15s ease, box-shadow .15s ease;
 }
 
 .number-control input {
-  border-radius: 12px 0 0 12px;
+  min-width: 0;
+  min-height: 44px;
+  border: 0;
+  border-radius: 0;
+  padding-right: 10px;
+  background: transparent;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.number-control:hover {
+  border-color: var(--line-strong);
+}
+
+.number-control:focus-within {
+  border-color: var(--info);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--info) 32%, transparent);
+}
+
+.number-control input:focus-visible,
+.number-control .number-step:focus-visible {
+  outline: 0;
 }
 
 .number-stepper {
-  display: flex;
-  align-items: stretch;
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  border-left: 1px solid var(--line);
+  background: var(--panel-2);
 }
 
 .number-step {
-  width: 42px;
-  min-height: 46px;
-  border: 1px solid var(--line);
-  border-left: 0;
+  display: grid;
+  place-items: center;
+  width: 33px;
+  min-height: 22px;
+  border: 0;
   background: var(--panel-2);
-  color: var(--text);
-  font-weight: 800;
+  color: var(--muted);
+  font-size: .52rem;
+  line-height: 1;
+  transition: background-color .12s ease, color .12s ease;
 }
 
-.number-step:last-child {
-  border-radius: 0 12px 12px 0;
+.number-step + .number-step {
+  border-top: 1px solid var(--line);
 }
 
 .number-step:hover {
+  background: var(--panel-3);
+  color: var(--text);
+}
+
+.number-step:active {
   background: var(--brand);
   color: white;
+}
+
+.number-control:has(input:disabled) {
+  opacity: .58;
+}
+
+.number-control:has(input:disabled) .number-step {
+  cursor: not-allowed;
 }
 
 textarea {
@@ -1380,8 +1443,9 @@ small {
     grid-template-columns: 1fr;
   }
 
-  .form-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .activity-primary-fields,
+  .activity-metric-fields {
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
   }
 
   .settings-actions {
@@ -1434,6 +1498,12 @@ small {
   }
 
   .profile-calculations {
+    grid-template-columns: 1fr;
+  }
+
+  .activity-primary-fields,
+  .activity-metric-fields,
+  .step-fields {
     grid-template-columns: 1fr;
   }
 }

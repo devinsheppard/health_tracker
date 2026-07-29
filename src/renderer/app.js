@@ -58,6 +58,12 @@ boot();
 async function boot() {
   renderNav();
   document.addEventListener('click', handleNumberStepClick);
+  document.addEventListener('input', handleNumberInput);
+  document.addEventListener('focusin', handleNumberFocus);
+  document.addEventListener('focusout', handleNumberBlur);
+  document.addEventListener('keydown', handleNumberKeyDown);
+  document.addEventListener('wheel', handleNumberWheel, { passive: false });
+  document.addEventListener('submit', handleNumberSubmit, true);
   document.getElementById('todayText').textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   document.getElementById('themeToggle').addEventListener('click', async () => {
     const theme = document.body.classList.contains('light') ? 'dark' : 'light';
@@ -531,7 +537,7 @@ function activity() {
         ['TDEE', `${fmt(burn.tdee)} cal`, 'BMR + burn'],
         ['Deficit / surplus', `${balance >= 0 ? '+' : ''}${fmt(balance)} cal`, `${fmt(intake.calories)} calories in today`]
       ])}
-      <div class="grid two">
+      <div class="grid activity-entry-grid">
         ${panel(editingStepLogId ? 'Edit daily steps' : 'Daily steps', `${stepBurnNote()}${stepForm((state.step_log || []).find((row) => row.id === editingStepLogId) || todaysSteps)}`)}
         ${panel(editingActivity ? 'Edit activity' : 'Log activity', activityForm(editingActivity))}
       </div>
@@ -908,11 +914,13 @@ function activityForm(row = null) {
       ['date', 'Date', 'date', row?.date || today()],
       ['workout_time', 'Activity time', 'time', row?.workout_time || nowTime()],
       ['environment', 'Environment', 'select', row?.environment || 'indoor', ['indoor', 'outdoor']],
-      ['name', 'Activity', 'select', row?.name || 'Slow walking', names],
+      ['name', 'Activity', 'select', row?.name || 'Slow walking', names]
+    ], 'activity-primary-fields')}
+    ${fields([
       ['met', 'MET', 'number', row?.met || activities['Slow walking']],
       ['duration', 'Duration (minutes)', 'number', row?.duration || ''],
       ['calories', 'Base calories', 'number', baseCalories || '']
-    ])}
+    ], 'activity-metric-fields')}
     ${weatherSection(row || {}, baseCalories)}
     <label>Notes<textarea name="notes">${esc(row?.notes || '')}</textarea></label>
     <div class="alert bad form-error weather-hidden" data-activity-error role="alert" aria-live="polite"></div>
@@ -929,7 +937,7 @@ function stepForm(row = null) {
     ${fields([
     ['date', 'Date', 'date', row?.date || today()],
     ['steps', 'Steps', 'number', row?.steps || '']
-  ])}
+  ], 'step-fields')}
     <label>Notes<textarea name="notes">${esc(row?.notes || '')}</textarea></label>
     <div class="actions">
       <button class="primary-button">${row ? 'Update steps' : 'Save steps'}</button>
@@ -945,7 +953,7 @@ function stepBurnNote() {
 function weightForm() {
   return `<form id="weightForm">${fields([
     ['date', 'Date', 'date', today()],
-    ['weight', 'Weight (lbs)', 'number', profileWeight() || ''],
+    ['weight', 'Weight (lbs)', 'number', profileWeight() || '', { min: 20, max: 1500, step: 0.1, required: true }],
     ['body_fat', 'Body fat %', 'number', state.profile?.body_fat || '']
   ])}<label>Notes<textarea name="notes"></textarea></label><button class="primary-button">Save weight</button></form>`;
 }
@@ -1053,28 +1061,75 @@ function settingsAction(title, description, id, buttonClass, buttonLabel) {
   </article>`;
 }
 
-function fields(items) {
-  return `<div class="form-grid">${items.map(([name, label, type, value = '', options]) => {
+function fields(items, className = '') {
+  return `<div class="form-grid ${attr(className)}">${items.map(([name, label, type, value = '', options]) => {
     if (type === 'select') {
       return `<label>${esc(label)}<select name="${attr(name)}">${options.map((option) => `<option value="${attr(option)}" ${option === value ? 'selected' : ''}>${esc(option || 'Not set')}</option>`).join('')}</select></label>`;
     }
     if (type === 'number') {
-      return numberField(name, label, value);
+      return numberField(name, label, value, options);
     }
     return `<label>${esc(label)}<input name="${attr(name)}" type="${attr(type)}" value="${attr(value)}"></label>`;
   }).join('')}</div>`;
 }
 
-function numberField(name, label, value = '') {
+function numberField(name, label, value = '', options = {}) {
+  const config = { ...numericFieldConfig(name, label), ...options };
+  const minimum = config.min === undefined ? '' : ` data-min="${attr(config.min)}" aria-valuemin="${attr(config.min)}"`;
+  const maximum = config.max === undefined ? '' : ` data-max="${attr(config.max)}" aria-valuemax="${attr(config.max)}"`;
+  const required = config.required ? ' required aria-required="true"' : '';
   return `<label>${esc(label)}
-    <span class="number-control">
-      <input name="${attr(name)}" type="text" inputmode="decimal" data-number-input value="${attr(value)}">
-      <span class="number-stepper" aria-label="Optional ${attr(label)} step controls">
-        <button class="number-step" data-number-step="-1" aria-label="Decrease ${attr(label)}" type="button">−</button>
-        <button class="number-step" data-number-step="1" aria-label="Increase ${attr(label)}" type="button">+</button>
+    <span class="number-control" data-number-control>
+      <input name="${attr(name)}" type="text" inputmode="decimal" role="spinbutton" data-number-input data-step="${attr(config.step)}"${minimum}${maximum}${required} aria-label="${attr(label)}" value="${attr(value)}" autocomplete="off">
+      <span class="number-stepper" aria-hidden="false">
+        <button class="number-step" data-number-step="1" aria-label="Increase ${attr(label)}" tabindex="-1" type="button"><span aria-hidden="true">▲</span></button>
+        <button class="number-step" data-number-step="-1" aria-label="Decrease ${attr(label)}" tabindex="-1" type="button"><span aria-hidden="true">▼</span></button>
       </span>
     </span>
   </label>`;
+}
+
+function numericFieldConfig(name, label) {
+  const configs = {
+    systolic: { min: 50, max: 300, step: 1, required: true },
+    diastolic: { min: 30, max: 200, step: 1, required: true },
+    heart_rate: { min: 20, max: 250, step: 1 },
+    net_carbs: { min: 0, max: 1000, step: 1 },
+    protein: { min: 0, max: 1000, step: 1 },
+    fat: { min: 0, max: 1000, step: 1 },
+    calories: { min: 0, max: 10000, step: 1 },
+    pre_glucose: { min: 20, max: 600, step: 1 },
+    post_glucose: { min: 20, max: 600, step: 1 },
+    duration: { min: 0, max: 1440, step: 1 },
+    template_duration: { min: 0, max: 1440, step: 1 },
+    sets: { min: 0, max: 100, step: 1 },
+    reps: { min: 0, max: 1000, step: 1 },
+    weight: { min: 0, max: 2000, step: 0.1 },
+    seconds: { min: 0, max: 86400, step: 1 },
+    ex_sets: { min: 0, max: 100, step: 1 },
+    ex_reps: { min: 0, max: 1000, step: 1 },
+    ex_weight: { min: 0, max: 2000, step: 0.1 },
+    ex_seconds: { min: 0, max: 86400, step: 1 },
+    temperature_f: { min: -150, max: 180, step: 0.1 },
+    humidity_percent: { min: 0, max: 100, step: 1 },
+    wind_mph: { min: 0, max: 300, step: 0.1 },
+    met: { min: 0, max: 25, step: 0.1 },
+    steps: { min: 0, max: 200000, step: 100, required: true },
+    body_fat: { min: 0, max: 100, step: 0.1 },
+    hours: { min: 0, max: 24, step: 0.25, required: true },
+    morning_glucose: { min: 20, max: 600, step: 1 },
+    height_ft: { min: 0, max: 9, step: 1 },
+    height_in: { min: 0, max: 11.99, step: 0.1 },
+    current_weight: { min: 20, max: 1500, step: 0.1 },
+    protein_target: { min: 0, max: 1000, step: 1 },
+    a1c_goal: { min: 3, max: 20, step: 0.1 }
+  };
+  if (name === 'value') {
+    return label === 'mg/dL'
+      ? { min: 20, max: 600, step: 1, required: true }
+      : { min: -100000, max: 100000, step: 0.1, required: true };
+  }
+  return configs[name] || { step: 1 };
 }
 
 function handleNumberStepClick(event) {
@@ -1083,13 +1138,124 @@ function handleNumberStepClick(event) {
   const input = button.closest('.number-control')?.querySelector('[data-number-input]');
   if (!input) return;
   const direction = Number(button.dataset.numberStep) || 0;
-  const current = Number(input.value);
-  const base = Number.isFinite(current) ? current : 0;
-  const next = base + direction;
-  input.value = String(next);
-  input.dispatchEvent(new Event('input', { bubbles: true }));
+  stepNumberInput(input, direction);
   input.focus();
-  input.select();
+}
+
+function handleNumberFocus(event) {
+  const input = event.target.closest?.('[data-number-input]');
+  if (!input) return;
+  const value = parseNumberInput(input.value);
+  if (value !== null) input.dataset.lastValidValue = String(value);
+  updateNumberAria(input);
+}
+
+function handleNumberInput(event) {
+  const input = event.target.closest?.('[data-number-input]');
+  if (!input) return;
+  input.setCustomValidity('');
+  const value = parseNumberInput(input.value);
+  if (value !== null && numberInRange(input, value)) input.dataset.lastValidValue = String(value);
+  updateNumberAria(input);
+}
+
+function handleNumberBlur(event) {
+  const input = event.target.closest?.('[data-number-input]');
+  if (!input) return;
+  if (!validateNumberInput(input, false) && input.value.trim() !== '') {
+    input.value = input.dataset.lastValidValue || '';
+    input.setCustomValidity('');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+}
+
+function handleNumberKeyDown(event) {
+  const input = event.target.closest?.('[data-number-input]');
+  if (!input) return;
+  if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+    event.preventDefault();
+    stepNumberInput(input, event.key === 'ArrowUp' ? 1 : -1);
+  } else if (event.key === 'Enter' && !validateNumberInput(input, true)) {
+    event.preventDefault();
+  }
+}
+
+function handleNumberWheel(event) {
+  const input = event.target.closest?.('[data-number-input]');
+  if (!input || document.activeElement !== input || event.deltaY === 0) return;
+  event.preventDefault();
+  stepNumberInput(input, event.deltaY < 0 ? 1 : -1);
+}
+
+function handleNumberSubmit(event) {
+  const inputs = [...event.target.querySelectorAll?.('[data-number-input]') || []];
+  const invalid = inputs.find((input) => !validateNumberInput(input, false));
+  if (!invalid) return;
+  event.preventDefault();
+  invalid.reportValidity();
+  invalid.focus();
+}
+
+function parseNumberInput(value) {
+  const text = String(value ?? '').trim();
+  if (!text || !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(text)) return null;
+  const number = Number(text);
+  return Number.isFinite(number) ? number : null;
+}
+
+function numberInRange(input, value) {
+  const minimum = input.dataset.min === undefined ? -Infinity : Number(input.dataset.min);
+  const maximum = input.dataset.max === undefined ? Infinity : Number(input.dataset.max);
+  return value >= minimum && value <= maximum;
+}
+
+function validateNumberInput(input, report) {
+  const text = input.value.trim();
+  const value = parseNumberInput(text);
+  let message = '';
+  if (!text && input.required) {
+    message = `${input.getAttribute('aria-label')} is required.`;
+  } else if (text && value === null) {
+    message = 'Enter a valid number.';
+  } else if (value !== null && !numberInRange(input, value)) {
+    const minimum = input.dataset.min;
+    const maximum = input.dataset.max;
+    message = minimum !== undefined && maximum !== undefined
+      ? `Enter a value from ${minimum} to ${maximum}.`
+      : minimum !== undefined
+        ? `Enter a value of at least ${minimum}.`
+        : `Enter a value no greater than ${maximum}.`;
+  }
+  input.setCustomValidity(message);
+  if (report && message) input.reportValidity();
+  return !message;
+}
+
+function stepNumberInput(input, direction) {
+  if (input.disabled || input.readOnly) return;
+  const step = Number(input.dataset.step) || 1;
+  const current = parseNumberInput(input.value);
+  const previous = parseNumberInput(input.dataset.lastValidValue);
+  const minimum = input.dataset.min === undefined ? -Infinity : Number(input.dataset.min);
+  const maximum = input.dataset.max === undefined ? Infinity : Number(input.dataset.max);
+  const base = current ?? previous ?? (Number.isFinite(minimum) && minimum > 0 ? minimum : 0);
+  const precision = Math.max(decimalPlaces(step), decimalPlaces(base));
+  const next = Math.min(maximum, Math.max(minimum, Number((base + (direction * step)).toFixed(precision))));
+  input.value = String(next);
+  input.setCustomValidity('');
+  input.dataset.lastValidValue = String(next);
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function decimalPlaces(value) {
+  const text = String(value);
+  return text.includes('.') ? text.length - text.indexOf('.') - 1 : 0;
+}
+
+function updateNumberAria(input) {
+  const value = parseNumberInput(input.value);
+  if (value === null) input.removeAttribute('aria-valuenow');
+  else input.setAttribute('aria-valuenow', String(value));
 }
 
 function bindForm(id, tableName) {

@@ -36,13 +36,16 @@ test('delete confirmation is app-rendered and always removes its overlay', () =>
   assert.doesNotMatch(confirmDelete, /window\.confirm/);
 });
 
-test('shared numeric fields use text-backed editing with explicit step controls', () => {
+test('shared numeric fields use text-backed editing with integrated vertical spinner controls', () => {
   const fields = appJs.slice(appJs.indexOf('function fields'), appJs.indexOf('function bindForm'));
 
-  assert.match(fields, /numberField\(name, label, value\)/);
+  assert.match(fields, /numberField\(name, label, value, options\)/);
   assert.match(fields, /data-number-input/);
   assert.match(fields, /inputmode="decimal"/);
   assert.match(fields, /data-number-step/);
+  assert.match(fields, /role="spinbutton"/);
+  assert.match(fields, /aria-valuemin/);
+  assert.match(fields, /handleNumberWheel/);
   assert.doesNotMatch(fields, /type="\$\{attr\(type\)\}".*step="any"/s);
 });
 

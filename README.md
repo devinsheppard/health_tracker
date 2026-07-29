@@ -112,6 +112,13 @@ Upgrades preserve user data because the installer keeps the same Electron app id
 
 ## Changelog
 
+### v2.1.0
+
+- Replaced every shared minus/value/plus numeric control with one compact, editable spinbox and an integrated vertical up/down arrow rail.
+- Added direct typing, temporary blank editing, per-field minimum/maximum/step metadata, keyboard and focused-wheel stepping, accessible spinbutton semantics, and safe invalid-value recovery.
+- Rebuilt Activity & Burn entry cards into stable Daily Steps and Log Activity rows and made form grids wrap at usable minimum widths instead of collapsing numeric values.
+- Preserved the existing database schema, calculations, app identity, and `%APPDATA%\My Health Tracker\my-health-tracker.sqlite` storage path so upgrades retain all user data.
+
 ### v2.0.0
 
 - Redesigned the full desktop interface as a polished dark health dashboard with red branding, grouped icon navigation, layered cards, clearer typography, responsive layouts, and high-contrast focus states.

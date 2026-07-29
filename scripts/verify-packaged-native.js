@@ -33,9 +33,12 @@ if (
   || !packagedRenderer.includes('settings-page')
   || !packagedRenderer.includes('Danger Zone')
   || !packagedRenderer.includes('number-stepper')
+  || !packagedRenderer.includes('role="spinbutton"')
+  || !packagedRenderer.includes('handleNumberWheel')
+  || !packagedRenderer.includes('activity-primary-fields')
   || !packagedRenderer.includes('nav-group')
 ) {
-  throw new Error('Packaged renderer does not contain the final v2 dashboard and environmental UI implementation.');
+  throw new Error('Packaged renderer does not contain the final v2.1 dashboard, spinner, and environmental UI implementation.');
 }
 
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'health-tracker-packaged-smoke-'));
