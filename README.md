@@ -112,6 +112,12 @@ Upgrades preserve user data because the installer keeps the same Electron app id
 
 ## Changelog
 
+### v1.2.2
+
+- Fixed automatic weather retrieval appearing unresponsive in Activity & Burn.
+- Added inline validation for the activity date, time, and location before contacting Open-Meteo.
+- Added an in-form loading state and clear provider/network error messages while preserving offline manual weather entry.
+
 ### v1.2.1
 
 - Fixed Activity form failures appearing to do nothing by displaying save and validation errors directly in the form.

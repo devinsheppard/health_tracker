@@ -46,3 +46,22 @@ test('activity save errors are visible and outdoor weather fields are required',
   assert.match(activityBinding, /form\.querySelector\('\[data-activity-error\]'\)/);
   assert.match(weatherBinding, /form\.elements\[field\]\.required = isOutdoor/);
 });
+
+test('weather retrieval validates inputs and reports provider failures beside the button', () => {
+  const weatherForm = appJs.slice(appJs.indexOf('function weatherSection'), appJs.indexOf('function weatherMetric'));
+  const weatherBinding = appJs.slice(appJs.indexOf('function bindWeatherFields'), appJs.indexOf('function updateWeatherPreview'));
+
+  assert.match(weatherForm, /data-weather-error/);
+  assert.match(weatherForm, /aria-live="polite"/);
+  assert.match(weatherBinding, /Enter a city, postal code, or location before retrieving weather/);
+  assert.match(weatherBinding, /fetchButton\.disabled = true/);
+  assert.match(weatherBinding, /showWeatherError\(message\)/);
+  assert.match(weatherBinding, /finally/);
+});
+
+test('weather IPC errors are reduced to useful messages', () => {
+  const formatter = appJs.slice(appJs.indexOf('function weatherErrorMessage'), appJs.indexOf('function updateWeatherPreview'));
+
+  assert.match(formatter, /Error invoking remote method/);
+  assert.match(formatter, /Check your internet connection/);
+});

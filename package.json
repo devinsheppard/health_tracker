@@ -1,6 +1,6 @@
 {
   "name": "my-health-tracker",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Windows desktop personal health tracker",
   "main": "src/main.js",
   "author": "My Health Tracker",

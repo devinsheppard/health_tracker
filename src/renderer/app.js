@@ -699,6 +699,7 @@ function weatherSection(values = {}, baseCalories = 0) {
       <input type="hidden" name="weather_source" value="${attr(source)}">
       <input type="hidden" name="weather_is_automatic" value="${attr(values.weather_is_automatic || 0)}">
       <input type="hidden" name="weather_retrieved_at" value="${attr(values.weather_retrieved_at || '')}">
+      <div class="alert bad form-error weather-hidden" data-weather-error role="alert" aria-live="polite"></div>
       <div class="actions">
         <button class="ghost-button" data-fetch-weather type="button">Retrieve weather automatically</button>
         <span class="muted" data-weather-source>${esc(source ? `Source: ${source}` : 'Manual entry')}</span>
@@ -1448,9 +1449,22 @@ function environmentalFieldsFrom(row) {
 }
 
 function bindWeatherFields(form, getBaseCalories) {
+  if (!form) return;
   const environmentSelect = form.elements.environment;
   if (!environmentSelect) return;
   const weatherSectionElement = form.querySelector('[data-weather-section]');
+  const weatherError = form.querySelector('[data-weather-error]');
+  const fetchButton = form.querySelector('[data-fetch-weather]');
+  const clearWeatherError = () => {
+    if (!weatherError) return;
+    weatherError.textContent = '';
+    weatherError.classList.add('weather-hidden');
+  };
+  const showWeatherError = (message) => {
+    if (!weatherError) return;
+    weatherError.textContent = message;
+    weatherError.classList.remove('weather-hidden');
+  };
   const setVisibility = () => {
     const isOutdoor = environmentSelect.value === 'outdoor';
     weatherSectionElement?.classList.toggle('weather-hidden', !isOutdoor);
@@ -1466,6 +1480,7 @@ function bindWeatherFields(form, getBaseCalories) {
 
   for (const field of ['date', 'workout_time', 'location', 'temperature_f', 'humidity_percent', 'wind_mph']) {
     form.elements[field]?.addEventListener('input', () => {
+      clearWeatherError();
       form.elements.weather_is_automatic.value = '0';
       form.elements.weather_source.value = 'Manual';
       form.elements.weather_retrieved_at.value = '';
@@ -1475,7 +1490,24 @@ function bindWeatherFields(form, getBaseCalories) {
     });
   }
 
-  form.querySelector('[data-fetch-weather]')?.addEventListener('click', async () => {
+  fetchButton?.addEventListener('click', async () => {
+    clearWeatherError();
+    const missing = [
+      ['date', 'Choose a date before retrieving weather.'],
+      ['workout_time', 'Choose an activity time before retrieving weather.'],
+      ['location', 'Enter a city, postal code, or location before retrieving weather.']
+    ].find(([field]) => !String(form.elements[field]?.value || '').trim());
+    if (missing) {
+      showWeatherError(missing[1]);
+      form.elements[missing[0]]?.focus();
+      notify('Weather retrieval needs more information');
+      return;
+    }
+
+    const originalButtonText = fetchButton.textContent;
+    fetchButton.disabled = true;
+    fetchButton.textContent = 'Retrieving weather...';
+    weatherSectionElement?.setAttribute('aria-busy', 'true');
     notify('Retrieving weather...');
     try {
       const result = await api.getWeatherForWorkout({
@@ -1491,10 +1523,26 @@ function bindWeatherFields(form, getBaseCalories) {
       updateWeatherPreview(form, getBaseCalories());
       notify('Weather retrieved');
     } catch (error) {
-      notify(error.message || 'Weather unavailable; enter conditions manually.');
+      const message = weatherErrorMessage(error);
+      showWeatherError(message);
+      notify('Weather retrieval failed');
+    } finally {
+      fetchButton.disabled = false;
+      fetchButton.textContent = originalButtonText;
+      weatherSectionElement?.removeAttribute('aria-busy');
     }
   });
   updateWeatherPreview(form, getBaseCalories());
+}
+
+function weatherErrorMessage(error) {
+  const fallback = 'Weather is unavailable. Check your internet connection or enter the conditions manually.';
+  const message = String(error?.message || '').trim();
+  if (!message) return fallback;
+  const remoteMessage = message.match(/Error invoking remote method ['"][^'"]+['"]:\s*Error:\s*(.+)$/s)?.[1];
+  const clean = (remoteMessage || message).trim();
+  if (/fetch failed|network|timed?\s*out|abort/i.test(clean)) return fallback;
+  return clean;
 }
 
 function updateWeatherPreview(form, baseCalories) {
