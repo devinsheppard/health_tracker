@@ -44,9 +44,9 @@ for (let y = size - 1; y >= 0; y--) {
     const inCross = (Math.abs(x - 127.5) < 22 && y > 58 && y < 198) || (Math.abs(y - 127.5) < 22 && x > 58 && x < 198);
     const pulse = y > 148 && y < 170 && x > 38 && x < 218 && Math.abs(y - (160 - Math.sin((x - 38) / 18) * 24)) < 7;
     const a = inCircle ? 255 : 0;
-    const r = inCross || pulse ? 255 : 34;
-    const g = inCross || pulse ? 255 : 197;
-    const b = inCross || pulse ? 255 : 154;
+    const r = inCross || pulse ? 255 : 229;
+    const g = inCross || pulse ? 255 : 72;
+    const b = inCross || pulse ? 255 : 77;
     buf.writeUInt8(b, offset++);
     buf.writeUInt8(g, offset++);
     buf.writeUInt8(r, offset++);

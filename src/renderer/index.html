@@ -12,20 +12,34 @@
         <img src="../../build/icon.svg" alt="" />
         <div>
           <strong>My Health Tracker</strong>
-          <span id="profileChip">Local SQLite</span>
+          <span>Personal health dashboard</span>
         </div>
       </div>
-      <nav id="nav"></nav>
-      <button id="themeToggle" class="ghost-button" type="button">Toggle theme</button>
+      <nav id="nav" aria-label="Primary navigation"></nav>
+      <div class="sidebar-footer">
+        <div class="privacy-chip">
+          <span class="privacy-dot" aria-hidden="true"></span>
+          <span><strong id="profileChip">Local profile</strong><small>Private on this device</small></span>
+        </div>
+        <button id="themeToggle" class="ghost-button theme-button" type="button" aria-label="Toggle light and dark theme">
+          <span aria-hidden="true">◐</span><span class="button-label">Toggle theme</span>
+        </button>
+      </div>
     </aside>
 
     <main>
       <header class="topbar">
         <div>
-          <p id="todayText"></p>
+          <p class="eyebrow" id="todayText"></p>
           <h1 id="pageTitle">Dashboard</h1>
         </div>
-        <div class="status-pill" id="saveStatus">Auto-save ready</div>
+        <div class="topbar-actions">
+          <div class="status-pill" id="saveStatus" role="status" aria-live="polite">
+            <span class="status-dot" aria-hidden="true"></span>
+            <span>Auto-save ready</span>
+          </div>
+          <div class="profile-avatar" id="profileAvatar" aria-hidden="true">HT</div>
+        </div>
       </header>
       <section id="content"></section>
     </main>

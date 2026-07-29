@@ -4,7 +4,6 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
-const { pathToFileURL } = require('node:url');
 let harnessStep = 'startup';
 
 if (process.versions.electron) {
@@ -73,6 +72,13 @@ if (process.versions.electron) {
       weightSaved: true,
       exerciseSaved: true
     });
+    assert.deepEqual(result.navigationAudit.pages, [
+      'dashboard', 'glucose', 'bloodPressure', 'food', 'workouts', 'activity',
+      'weight', 'sleep', 'meds', 'labs', 'settings'
+    ]);
+    assert.equal(result.navigationAudit.hasDocumentOverflow, false);
+    assert.equal(result.navigationAudit.emptyPages.length, 0);
+    assert.deepEqual(result.navigationAudit.scales, ['normal', 'large', 'extra large']);
   });
 }
 
@@ -116,13 +122,22 @@ async function runElectronHarness() {
   });
 
   harnessStep = 'load renderer';
-  await win.loadURL(pathToFileURL(path.join(__dirname, '..', 'src', 'renderer', 'index.html')).href);
+  await win.loadFile(path.join(__dirname, '..', 'src', 'renderer', 'index.html'));
   harnessStep = 'wait for nav';
   await waitFor(win, 'document.querySelector("[data-page=\\"glucose\\"]")');
   harnessStep = 'install diagnostics';
   await installDiagnostics(win);
   harnessStep = 'seed records';
   await seedRecords(win);
+  harnessStep = 'audit all navigation destinations';
+  const navigationAudit = await auditNavigation(win);
+  if (process.env.HT_CAPTURE_UI_PATH) {
+    harnessStep = 'capture redesigned dashboard';
+    win.setBounds({ x: 0, y: 0, width: 1360, height: 860 });
+    await navigate(win, 'dashboard');
+    const image = await win.webContents.capturePage();
+    fs.writeFileSync(process.env.HT_CAPTURE_UI_PATH, image.toPNG());
+  }
   harnessStep = 'navigate glucose';
   await navigate(win, 'glucose');
 
@@ -193,6 +208,7 @@ async function runElectronHarness() {
     afterSecondDelete,
     afterWorkoutExerciseDelete,
     savedPostDeleteValues,
+    navigationAudit,
     deletes: {
       glucoseDelete,
       foodDelete,
@@ -205,6 +221,40 @@ async function runElectronHarness() {
   db.close();
   await win.close();
   await app.quit();
+}
+
+async function auditNavigation(win) {
+  const pages = [
+    'dashboard', 'glucose', 'bloodPressure', 'food', 'workouts', 'activity',
+    'weight', 'sleep', 'meds', 'labs', 'settings'
+  ];
+  const emptyPages = [];
+  let hasDocumentOverflow = false;
+  const scales = ['normal', 'large', 'extra large'];
+
+  for (const bounds of [{ width: 1360, height: 860 }, { width: 960, height: 640 }]) {
+    win.setBounds({ x: 0, y: 0, ...bounds });
+    const scalesForWidth = bounds.width === 960 ? scales : ['normal'];
+    for (const scale of scalesForWidth) {
+      await win.webContents.executeJavaScript(`document.body.dataset.uiScale = ${JSON.stringify(scale)};`);
+      for (const page of pages) {
+        await navigate(win, page);
+        const layout = await win.webContents.executeJavaScript(`
+          (() => ({
+            contentChildren: document.getElementById('content').children.length,
+            documentWidth: document.documentElement.scrollWidth,
+            viewportWidth: document.documentElement.clientWidth,
+            activePage: document.querySelector('.nav-button.active')?.dataset.page || ''
+          }))()
+        `);
+        if (!layout.contentChildren || layout.activePage !== page) emptyPages.push(`${page}@${bounds.width}/${scale}`);
+        if (layout.documentWidth > layout.viewportWidth + 1) hasDocumentOverflow = true;
+      }
+    }
+  }
+
+  await win.webContents.executeJavaScript(`document.body.dataset.uiScale = 'normal';`);
+  return { pages, scales, emptyPages, hasDocumentOverflow };
 }
 
 async function seedRecords(win) {

@@ -29,8 +29,10 @@ if (packagedPackage.version !== sourcePackage.version) {
 if (
   !packagedRenderer.includes("weather_is_automatic.value = '0'")
   || !packagedRenderer.includes('data-weather-error')
+  || !packagedRenderer.includes('dashboard-primary')
+  || !packagedRenderer.includes('nav-group')
 ) {
-  throw new Error('Packaged renderer does not contain the final environmental UI implementation.');
+  throw new Error('Packaged renderer does not contain the final v2 dashboard and environmental UI implementation.');
 }
 
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'health-tracker-packaged-smoke-'));

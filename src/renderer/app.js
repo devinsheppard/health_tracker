@@ -70,7 +70,17 @@ async function boot() {
 async function refresh() {
   state = await api.getAll();
   applyAppearance();
-  document.getElementById('profileChip').textContent = state.profile?.name || 'Local SQLite';
+  document.getElementById('profileChip').textContent = state.profile?.name || 'Local profile';
+  const avatar = document.getElementById('profileAvatar');
+  if (avatar) {
+    avatar.textContent = String(state.profile?.name || 'Health Tracker')
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0])
+      .join('')
+      .toUpperCase() || 'HT';
+  }
   renderPage(currentPage);
 }
 
@@ -81,7 +91,26 @@ function applyAppearance() {
 
 function renderNav() {
   const nav = document.getElementById('nav');
-  nav.innerHTML = pages.map(([id, label]) => `<button class="nav-button" data-page="${id}" type="button">${label}</button>`).join('');
+  const pageMap = new Map(pages);
+  const groups = [
+    ['Overview', ['dashboard']],
+    ['Vitals', ['glucose', 'bloodPressure', 'weight', 'sleep']],
+    ['Nutrition', ['food']],
+    ['Fitness', ['workouts', 'activity']],
+    ['Health', ['meds', 'labs']],
+    ['System', ['settings']]
+  ];
+  nav.innerHTML = groups.map(([group, ids]) => `
+    <section class="nav-group" aria-labelledby="nav-${attr(group.toLowerCase())}">
+      <h2 id="nav-${attr(group.toLowerCase())}">${esc(group)}</h2>
+      ${ids.map((id) => `
+        <button class="nav-button" data-page="${attr(id)}" type="button">
+          ${appIcon(id)}
+          <span>${esc(pageMap.get(id))}</span>
+        </button>
+      `).join('')}
+    </section>
+  `).join('');
   nav.addEventListener('click', (event) => {
     const button = event.target.closest('[data-page]');
     if (!button) return;
@@ -101,12 +130,60 @@ function renderPage(page) {
 
 function metrics(items) {
   return `<div class="grid four">${items.map(([label, value, note]) => `
-    <article class="metric"><span>${esc(label)}</span><strong>${esc(value)}</strong><small>${esc(note || '')}</small></article>
+    <article class="metric ${metricTone(label, value, note)}">
+      <div class="metric-heading">${metricIcon(label)}<span>${esc(label)}</span></div>
+      <strong>${esc(value)}</strong>
+      <small>${esc(note || '')}</small>
+    </article>
   `).join('')}</div>`;
 }
 
 function panel(title, body) {
-  return `<section class="panel"><h2>${esc(title)}</h2>${body}</section>`;
+  return `<section class="panel">
+    <div class="panel-heading">${metricIcon(title)}<h2>${esc(title)}</h2></div>
+    ${body}
+  </section>`;
+}
+
+function metricTone(label, value, note) {
+  const text = `${label} ${value} ${note || ''}`.toLowerCase();
+  if (/out of range|warning|danger|extreme/.test(text)) return 'tone-danger';
+  if (/healthy|in range|complete|normal|saved/.test(text)) return 'tone-good';
+  if (/moderate|review|remaining|surplus|need /.test(text)) return 'tone-warn';
+  if (/glucose|a1c|blood|heart/.test(text)) return 'tone-purple';
+  return 'tone-info';
+}
+
+function appIcon(name) {
+  const paths = {
+    dashboard: '<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/>',
+    glucose: '<path d="M12 2S5.5 9.1 5.5 14.3a6.5 6.5 0 0 0 13 0C18.5 9.1 12 2 12 2Z"/><path d="M9 15.5c.8 1.4 1.9 2.1 3.5 2.1"/>',
+    bloodPressure: '<path d="M3 12h4l2-5 4 10 2-5h6"/><path d="M12 21C7 18 4 15 4 10a4 4 0 0 1 7-2.6A4 4 0 0 1 18 10c0 1-.2 1.9-.5 2.7"/>',
+    food: '<path d="M7 3v8M4 3v5c0 2 1 3 3 3s3-1 3-3V3M7 11v10M17 3v18M17 3c3 2 3 7 0 9"/>',
+    workouts: '<path d="M6 8v8M18 8v8M3 10v4M21 10v4M6 12h12"/>',
+    activity: '<path d="m13 5 2-2 3 3-2 2M9 21l2-6 3-3 3 2 4 1M3 12l4-2 3-4 3 2M7 10l3 3"/>',
+    weight: '<rect x="3" y="4" width="18" height="17" rx="3"/><path d="M8 9a4 4 0 0 1 8 0M12 9l2-2"/>',
+    sleep: '<path d="M20 15.5A8.5 8.5 0 0 1 8.5 4 8.5 8.5 0 1 0 20 15.5Z"/><path d="M16 3h4l-4 4h4"/>',
+    meds: '<path d="m10 5 9 9a4 4 0 0 1-6 6l-9-9a4 4 0 0 1 6-6Z"/><path d="m8 15 7-7"/>',
+    labs: '<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"/><path d="M8 15h8"/>',
+    settings: '<circle cx="12" cy="12" r="3"/><path d="M19 15.5a2 2 0 0 0 .4 2.2l-1.7 1.7a2 2 0 0 0-2.2-.4 2 2 0 0 0-1.2 1.8h-2.5A2 2 0 0 0 10.5 19a2 2 0 0 0-2.2.4l-1.7-1.7a2 2 0 0 0 .4-2.2 2 2 0 0 0-1.8-1.2v-2.5A2 2 0 0 0 7 10.5a2 2 0 0 0-.4-2.2l1.7-1.7a2 2 0 0 0 2.2.4 2 2 0 0 0 1.3-1.8h2.5a2 2 0 0 0 1.2 1.8 2 2 0 0 0 2.2-.4l1.7 1.7a2 2 0 0 0-.4 2.2 2 2 0 0 0 1.8 1.3v2.5a2 2 0 0 0-1.8 1.2Z"/>'
+  };
+  return `<svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths[name] || paths.dashboard}</svg>`;
+}
+
+function metricIcon(label) {
+  const text = String(label || '').toLowerCase();
+  const name = text.includes('glucose') || text.includes('a1c') ? 'glucose'
+    : text.includes('blood') || text.includes('heart') ? 'bloodPressure'
+      : text.includes('weight') || text.includes('pound') ? 'weight'
+        : text.includes('sleep') ? 'sleep'
+          : text.includes('protein') || text.includes('calorie') || text.includes('intake') || text.includes('carb') || text.includes('fat') ? 'food'
+            : text.includes('workout') || text.includes('exercise') || text.includes('lift') ? 'workouts'
+              : text.includes('step') || text.includes('activity') || text.includes('tdee') || text.includes('bmr') ? 'activity'
+                : text.includes('medication') ? 'meds'
+                  : text.includes('lab') ? 'labs'
+                    : 'dashboard';
+  return appIcon(name);
 }
 
 function setContent(html) {
@@ -193,39 +270,126 @@ function dashboard() {
   const week = weeklyBalance();
   const pounds = lifetimePounds();
   const glucoseStats = glucoseSummary();
+  const latestGlucose = state.glucose_readings?.[0];
+  const latestBloodPressure = state.blood_pressure_readings?.[0];
+  const latestSleep = state.sleep_log?.[0];
+  const latestWeight = effectiveWeightOnOrBefore(state.weight_log || [], today());
   const trends = ledgerTrendSeries(state.daily_ledger || [], 30, bmr());
   const weightDelta = trendDelta(trends.weight);
   const glucoseDelta = trendDelta(trends.glucose);
   const proteinTarget = n(state.profile?.protein_target) || 160;
   const surplus = totals.calories - burn.tdee;
+  const calorieProgress = burn.tdee > 0 ? Math.min(100, totals.calories / burn.tdee * 100) : 0;
+  const proteinProgress = proteinTarget > 0 ? Math.min(100, totals.protein / proteinTarget * 100) : 0;
+  const challengeProgress = Math.min(100, pounds.total / 1000000 * 100);
+  const greetingName = String(state.profile?.name || '').trim().split(/\s+/)[0];
+  const balanceClass = surplus <= 0 ? 'good' : 'warn';
   setContent(`
-    <div class="grid">
+    <div class="dashboard-grid">
+      <section class="dashboard-hero">
+        <div>
+          <span class="hero-kicker">TODAY'S OVERVIEW</span>
+          <h2>${greetingName ? `Welcome back, ${esc(greetingName)}` : 'Your health at a glance'}</h2>
+          <p>Live summaries from the records stored privately on this device.</p>
+        </div>
+        <span class="health-badge good"><span aria-hidden="true">✓</span> Local data ready</span>
+      </section>
       ${latestGlucoseAlert()}
-      ${metrics([
-        ['TDEE', `${fmt(burn.tdee)} cal`, `BMR ${fmt(bmr())} + activity ${fmt(burn.activityBurn)} + workout ${fmt(burn.workoutBurn)}`],
-        ['Deficit / surplus', `${surplus >= 0 ? '+' : ''}${fmt(surplus)} cal`, `${fmt(totals.calories)} calories in today`],
-        ['Glucose status', glucoseStats.count ? `${fmt(glucoseStats.avg)} mg/dL` : '--', glucoseStats.count ? `Est. A1c ${fmt(glucoseStats.a1c, 1)}%` : 'No readings yet'],
-        ['Estimated A1C', glucoseStats.count ? `${fmt(glucoseStats.a1c, 1)}%` : '--', glucoseStats.count ? `${glucoseStats.count} glucose readings` : 'No readings yet'],
-        ['Weekly deficit / surplus', `${week.balance >= 0 ? '+' : ''}${fmt(week.balance)} cal`, `${fmt(week.calories)} in vs ${fmt(week.tdee)} TDEE`],
-        ['Protein', `${fmt(totals.protein)}g`, `Target ${fmt(proteinTarget)}g`],
-        ['30-day weight trend', weightDelta === null ? '--' : `${weightDelta >= 0 ? '+' : ''}${fmt(weightDelta, 1)} lbs`, 'Based on daily ledger weights'],
-        ['30-day glucose trend', glucoseDelta === null ? '--' : `${glucoseDelta >= 0 ? '+' : ''}${fmt(glucoseDelta)} mg/dL`, 'Daily average glucose change']
-      ])}
-      ${panel('1 Million Pound Challenge', `
-        <div class="progress"><span style="width:${Math.min(100, pounds.total / 1000000 * 100)}%"></span></div>
-        <p class="muted">${fmt(pounds.total)} lbs lifted, ${fmt(Math.max(0, 1000000 - pounds.total))} remaining. ${pounds.week} sessions this week, ${pounds.month} this month, ${pounds.sessions} lifetime.</p>
-      `)}
-      ${panel('Intake recommendation', `<div class="alert ${recommendation().tone}">${esc(recommendation().text)}</div>`)}
-      <div class="grid two">
-        ${panel('Weight trend', '<div class="chart-wrap"><canvas id="weightChart"></canvas></div>')}
-        ${panel('Glucose + A1C trend', '<div class="chart-wrap"><canvas id="glucoseChart"></canvas></div>')}
+
+      <div class="dashboard-primary">
+        <article class="feature-card energy-card">
+          <div class="feature-heading">
+            <span class="feature-icon info">${appIcon('food')}</span>
+            <div><span>Daily energy</span><small>Intake versus total burn</small></div>
+            <span class="health-badge ${balanceClass}">${surplus <= 0 ? 'Deficit' : 'Surplus'}</span>
+          </div>
+          <div class="feature-value">${fmt(totals.calories)}<span> / ${fmt(burn.tdee)} cal</span></div>
+          <div class="progress labeled-progress" aria-label="${fmt(calorieProgress)} percent of TDEE consumed">
+            <span style="width:${calorieProgress}%"></span>
+          </div>
+          <div class="feature-footer">
+            <span><strong class="${surplus <= 0 ? 'reading-green' : 'reading-amber'}">${surplus >= 0 ? '+' : ''}${fmt(surplus)} cal</strong> balance</span>
+            <span>BMR ${fmt(bmr())}</span>
+          </div>
+        </article>
+
+        <article class="feature-card glucose-card">
+          <div class="feature-heading">
+            <span class="feature-icon purple">${appIcon('glucose')}</span>
+            <div><span>Latest glucose</span><small>${latestGlucose ? `${esc(latestGlucose.context)} · ${esc(latestGlucose.time || latestGlucose.date)}` : 'No reading logged'}</small></div>
+          </div>
+          <div class="feature-value ${latestGlucose ? glucoseClass(latestGlucose.context, latestGlucose.value) : ''}">
+            ${latestGlucose ? fmt(latestGlucose.value) : '--'}<span> mg/dL</span>
+          </div>
+          <div class="feature-footer">
+            <span>Overall avg <strong>${glucoseStats.count ? fmt(glucoseStats.avg) : '--'}</strong></span>
+            <span>Est. A1C <strong>${glucoseStats.count ? `${fmt(glucoseStats.a1c, 1)}%` : '--'}</strong></span>
+          </div>
+        </article>
+
+        <article class="feature-card protein-card">
+          <div class="goal-ring" style="--progress:${proteinProgress * 3.6}deg" role="img" aria-label="${fmt(proteinProgress)} percent of protein goal">
+            <div><strong>${fmt(proteinProgress)}%</strong><span>complete</span></div>
+          </div>
+          <div class="goal-copy">
+            <span class="feature-icon good">${appIcon('workouts')}</span>
+            <div><span>Protein goal</span><strong>${fmt(totals.protein)}g <small>of ${fmt(proteinTarget)}g</small></strong></div>
+            <p>${fmt(Math.max(0, proteinTarget - totals.protein))}g remaining today</p>
+          </div>
+        </article>
       </div>
-      ${panel('Deficit / surplus trend', '<div class="chart-wrap compact-chart"><canvas id="balanceChart"></canvas></div>')}
+
+      <div class="dashboard-stats">
+        ${dashboardStat('activity', 'Steps today', burn.steps ? fmt(burn.steps) : '--', burn.steps ? `${fmt(burn.stepBurn)} calories estimated` : 'No step entry today', 'info')}
+        ${dashboardStat('weight', 'Current weight', latestWeight ? `${fmt(latestWeight.weight, 1)} lbs` : '--', weightDelta === null ? 'No 30-day trend yet' : `${weightDelta >= 0 ? '+' : ''}${fmt(weightDelta, 1)} lbs over 30 days`, weightDelta !== null && weightDelta < 0 ? 'good' : 'purple')}
+        ${dashboardStat('sleep', 'Latest sleep', latestSleep ? `${fmt(latestSleep.hours, 1)} hrs` : '--', latestSleep ? `${capitalize(latestSleep.quality)} quality · ${latestSleep.date}` : 'No sleep entry yet', latestSleep?.quality === 'great' || latestSleep?.quality === 'good' ? 'good' : 'warn')}
+        ${dashboardStat('bloodPressure', 'Blood pressure', latestBloodPressure ? `${fmt(latestBloodPressure.systolic)}/${fmt(latestBloodPressure.diastolic)}` : '--', latestBloodPressure ? `${latestBloodPressure.heart_rate ? `${fmt(latestBloodPressure.heart_rate)} bpm · ` : ''}${latestBloodPressure.date}` : 'No reading yet', 'purple')}
+        ${dashboardStat('workouts', 'Workout burn', `${fmt(burn.workoutBurn)} cal`, `${pounds.week} sessions this week`, 'warn')}
+        ${dashboardStat('activity', 'General activity', `${fmt(burn.activityBurn)} cal`, `${fmt(burn.stepBurn)} from steps`, 'info')}
+      </div>
+
+      <div class="dashboard-insight">
+        <span class="feature-icon good">${appIcon('dashboard')}</span>
+        <div><span>Today's deterministic insight</span><strong>${esc(recommendation().text)}</strong></div>
+      </div>
+
+      <div class="grid two dashboard-charts">
+        ${panel('Weight trend', '<p class="panel-subtitle">Daily weight and seven-day average</p><div class="chart-wrap"><canvas id="weightChart"></canvas></div>')}
+        ${panel('Glucose + A1C trend', '<p class="panel-subtitle">Daily glucose average and estimated A1C</p><div class="chart-wrap"><canvas id="glucoseChart"></canvas></div>')}
+      </div>
+      <div class="dashboard-lower">
+        ${panel('Deficit / surplus trend', '<p class="panel-subtitle">Thirty-day daily energy balance</p><div class="chart-wrap compact-chart"><canvas id="balanceChart"></canvas></div>')}
+        ${panel('Weekly progress', `
+          <div class="weekly-balance ${week.balance <= 0 ? 'good' : 'warn'}">
+            <span>WEEK TO DATE</span>
+            <strong>${week.balance >= 0 ? '+' : ''}${fmt(week.balance)} cal</strong>
+            <small>${fmt(week.calories)} in · ${fmt(week.tdee)} total burn</small>
+          </div>
+          <div class="challenge-summary">
+            <div class="feature-heading">
+              <span class="feature-icon warn">${appIcon('workouts')}</span>
+              <div><span>1 Million Pound Challenge</span><small>${fmt(pounds.total)} lbs lifetime</small></div>
+              <strong>${fmt(challengeProgress, 1)}%</strong>
+            </div>
+            <div class="progress"><span style="width:${challengeProgress}%"></span></div>
+            <p>${fmt(Math.max(0, 1000000 - pounds.total))} lbs remaining · ${pounds.sessions} sessions logged</p>
+          </div>
+        `)}
+      </div>
     </div>
   `);
   drawWeightChart('weightChart');
   drawGlucoseChart('glucoseChart');
   drawBalanceChart('balanceChart');
+}
+
+function dashboardStat(icon, label, value, note, tone = 'info') {
+  return `
+    <article class="dashboard-stat ${tone}">
+      <span class="feature-icon ${tone}">${appIcon(icon)}</span>
+      <div><span>${esc(label)}</span><strong>${esc(value)}</strong><small>${esc(note)}</small></div>
+    </article>
+  `;
 }
 
 function glucose() {
@@ -2115,8 +2279,8 @@ function drawWeightChart(id) {
     data: {
       labels: trends.labels,
       datasets: [
-        { label: 'Weight', data: trends.weight, borderColor: '#22c59a', tension: .25, spanGaps: true },
-        { label: '7-day average', data: trends.weightAverage, borderColor: '#f2b84b', borderDash: [6, 4], tension: .25, spanGaps: true }
+        { label: 'Weight', data: trends.weight, borderColor: '#48c78e', backgroundColor: 'rgba(72,199,142,.08)', fill: true, tension: .3, spanGaps: true, pointRadius: 1.5 },
+        { label: '7-day average', data: trends.weightAverage, borderColor: '#f0ad4e', borderDash: [6, 4], tension: .3, spanGaps: true, pointRadius: 0 }
       ]
     },
     options: chartOptions()
@@ -2132,8 +2296,8 @@ function drawGlucoseChart(id) {
     data: {
       labels: trends.labels,
       datasets: [
-        { label: 'Daily avg glucose', data: trends.glucose, borderColor: '#69a8ff', tension: .25, spanGaps: true, yAxisID: 'y' },
-        { label: 'Estimated A1C', data: trends.a1c, borderColor: '#f2b84b', tension: .25, spanGaps: true, yAxisID: 'a1c' }
+        { label: 'Daily avg glucose', data: trends.glucose, borderColor: '#9b7cf7', backgroundColor: 'rgba(155,124,247,.08)', fill: true, tension: .3, spanGaps: true, yAxisID: 'y', pointRadius: 1.5 },
+        { label: 'Estimated A1C', data: trends.a1c, borderColor: '#f0ad4e', tension: .3, spanGaps: true, yAxisID: 'a1c', pointRadius: 0 }
       ]
     },
     options: chartOptions({
@@ -2159,7 +2323,8 @@ function drawBalanceChart(id) {
       datasets: [{
         label: 'Deficit / surplus',
         data: trends.balance,
-        backgroundColor: trends.balance.map((value) => value > 0 ? 'rgba(243,109,109,.75)' : 'rgba(62,214,141,.75)')
+        backgroundColor: trends.balance.map((value) => value > 0 ? 'rgba(240,173,78,.72)' : 'rgba(72,199,142,.72)'),
+        borderRadius: 4
       }]
     },
     options: chartOptions()
@@ -2171,7 +2336,7 @@ function drawA1cChart(id, rows) {
   if (!ctx) return;
   charts.push(new Chart(ctx, {
     type: 'line',
-    data: { labels: rows.map((r) => r.date), datasets: [{ label: 'A1c', data: rows.map((r) => n(r.value)), borderColor: '#f2b84b', tension: .25 }] },
+    data: { labels: rows.map((r) => r.date), datasets: [{ label: 'A1c', data: rows.map((r) => n(r.value)), borderColor: '#f0ad4e', tension: .3, pointRadius: 2 }] },
     options: chartOptions()
   }));
 }
@@ -2184,7 +2349,25 @@ function chartOptions(overrides = {}) {
   return {
     responsive: true,
     maintainAspectRatio: false,
-    plugins: { legend: { labels: { color: getComputedStyle(document.body).getPropertyValue('--text') } } },
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: {
+        labels: {
+          color: getComputedStyle(document.body).getPropertyValue('--text'),
+          boxWidth: 10,
+          boxHeight: 10,
+          usePointStyle: true,
+          pointStyle: 'circle'
+        }
+      },
+      tooltip: {
+        backgroundColor: getComputedStyle(document.body).getPropertyValue('--panel-3'),
+        titleColor: getComputedStyle(document.body).getPropertyValue('--text'),
+        bodyColor: getComputedStyle(document.body).getPropertyValue('--text'),
+        borderColor: getComputedStyle(document.body).getPropertyValue('--line-strong'),
+        borderWidth: 1
+      }
+    },
     scales: { ...baseScales, ...(overrides.scales || {}) }
   };
 }

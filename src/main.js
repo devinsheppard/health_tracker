@@ -19,7 +19,7 @@ function createWindow() {
     center: true,
     title: 'My Health Tracker',
     icon: path.join(__dirname, '..', 'build', 'icon.ico'),
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#10151f' : '#f5f7fb',
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#0d0f14' : '#eef1f6',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
